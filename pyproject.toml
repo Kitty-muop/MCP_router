@@ -4,6 +4,12 @@ version = "0.1.0"
 description = "A CocoIndex application"
 requires-python = ">=3.11"
 dependencies = [
-    "cocoindex>=999.0.0",
+    "cocoindex>=1.0.0",
+    "fastapi>=0.141.1",
+    "httpx>=0.28.1",
+    "jinja2>=3.1.6",
     "markdown>=3.6",
+    "pytest>=9.1.1",
+    "pytest-asyncio>=1.4.0",
+    "uvicorn>=0.52.4",
 ]
