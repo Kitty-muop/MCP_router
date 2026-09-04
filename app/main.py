@@ -37,6 +37,21 @@ def _resolve_config_file(config_file: str) -> str:
     return OPENCODE_CONFIG
 
 
+def _load_mcp_servers() -> Dict[str, Dict[str, Any]]:
+    """Load MCP server configs from all config files."""
+    servers = {}
+    for label, config_file in [("opencode", OPENCODE_CONFIG), ("agycli", AGYCLI_CONFIG)]:
+        if os.path.exists(config_file):
+            try:
+                with open(config_file, "r", encoding="utf-8") as f:
+                    data = json.loads(strip_jsonc_comments(f.read()))
+                    for name, cmd in data.get("mcpServers", {}).items():
+                        servers[name] = {"config_file": config_file, "source": label, "command": cmd}
+            except Exception:
+                pass
+    return servers
+
+
 def _gather_dashboard_data() -> dict:
     """Collect keys, usage, and servers for both HTML and JSON views."""
     with get_db_conn() as conn:
@@ -50,36 +65,38 @@ def _gather_dashboard_data() -> dict:
     keys = [{"id": r[0], "provider": r[1], "key_value": r[2]} for r in raw_keys]
     usage = [{"provider": r[0], "key_value": r[1], "total_tokens": r[2]} for r in raw_usage]
 
-    servers = {}
-    for label, config_file in [("opencode", OPENCODE_CONFIG), ("agycli", AGYCLI_CONFIG)]:
-        if os.path.exists(config_file):
-            try:
-                with open(config_file, "r", encoding="utf-8") as f:
-                    data = json.loads(strip_jsonc_comments(f.read()))
-                    for name, cmd in data.get("mcpServers", {}).items():
-                        servers[name] = {"config_file": config_file, "source": label, "command": cmd}
-            except Exception:
-                pass
-
+    servers = _load_mcp_servers()
     os_processes = get_running_mcp_processes()
+    claimed_pids = set()
+
     for name, info in servers.items():
         cmd_info = info.get("command", {})
         cmd_str = ""
         if isinstance(cmd_info, dict):
-            cmd_str = f"{cmd_info.get('command', '')} {' '.join(cmd_info.get('args', []))}".strip()
+            args_str = " ".join(str(a) for a in (cmd_info.get("args") or []))
+            base = str(cmd_info.get("command", ""))
+            cmd_str = f"{base} {args_str}".strip()
         elif isinstance(cmd_info, list):
-            cmd_str = " ".join(cmd_info).strip()
+            cmd_str = " ".join(str(x) for x in cmd_info).strip()
         elif isinstance(cmd_info, str):
             cmd_str = cmd_info.strip()
 
         matched_pid = None
         for proc in os_processes:
+            p_pid = proc.get("pid")
+            if p_pid in claimed_pids:
+                continue
             p_cmd = proc.get("cmd", "")
             p_name = proc.get("name", "")
-            if (name.lower() in p_cmd.lower() or 
-                name.lower() in p_name.lower() or 
-                (cmd_str and (cmd_str in p_cmd or p_cmd in cmd_str))):
-                matched_pid = proc.get("pid")
+
+            name_lower = name.lower()
+            name_matches_proc = (p_name != "mcp-server" and name_lower in p_name.lower())
+            name_in_cmd = name_lower in p_cmd.lower()
+            cmd_matches = bool(cmd_str and (cmd_str in p_cmd or p_cmd in cmd_str))
+
+            if name_in_cmd or name_matches_proc or cmd_matches:
+                matched_pid = p_pid
+                claimed_pids.add(p_pid)
                 break
 
         if matched_pid is not None:
@@ -183,10 +200,15 @@ async def kill_pid_route(request: Request):
         body = await request.json()
     except Exception:
         return JSONResponse({"ok": False, "error": "Invalid JSON"}, status_code=400)
-    pid = body.get("pid")
-    if pid is None:
+    raw_pid = body.get("pid")
+    if raw_pid is None:
         return JSONResponse({"ok": False, "error": "Missing pid"}, status_code=400)
-    success = await run_in_threadpool(kill_process_by_pid, int(pid))
+    try:
+        pid = int(raw_pid)
+    except (ValueError, TypeError):
+        return JSONResponse({"ok": False, "error": "Invalid PID"}, status_code=400)
+
+    success = await run_in_threadpool(kill_process_by_pid, pid)
     return JSONResponse({"ok": success}, status_code=200 if success else 400)
 
 
@@ -204,11 +226,14 @@ async def start_server_route(request: Request):
         base_cmd = command.get("command", "")
         args = command.get("args", [])
         if base_cmd:
-            cmd_list = [base_cmd] + args
+            cmd_list = [base_cmd] + [str(a) for a in args]
     elif isinstance(command, list):
-        cmd_list = command
+        cmd_list = [str(x) for x in command]
     elif isinstance(command, str):
-        cmd_list = shlex.split(command)
+        try:
+            cmd_list = shlex.split(command)
+        except ValueError:
+            return JSONResponse({"ok": False, "error": "Malformed command"}, status_code=400)
     if not cmd_list:
         return JSONResponse({"ok": False, "error": "Invalid command list"}, status_code=400)
     pid = await run_in_threadpool(start_mcp_process, cmd_list)

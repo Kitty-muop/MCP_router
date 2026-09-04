@@ -2,6 +2,7 @@ import os
 import signal
 import subprocess
 import shlex
+import time
 from typing import List, Dict, Any, Optional
 
 MCP_KEYWORDS = [
@@ -16,13 +17,48 @@ MCP_KEYWORDS = [
     "modelcontextprotocol",
 ]
 
+APP_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__))).lower()
+
+
 def is_mcp_command(cmd: str) -> bool:
     """Return True if command string looks like an MCP server."""
     cmd_lower = cmd.lower()
-    # Exclude our own monitoring app and general grep/editor commands
-    if "app.main" in cmd_lower or "grep" in cmd_lower or "pytest" in cmd_lower:
+    # Exclude our own monitoring app, process manager, and general grep/test commands
+    if (
+        "app.main" in cmd_lower
+        or "process_manager" in cmd_lower
+        or "grep" in cmd_lower
+        or "pytest" in cmd_lower
+    ):
         return False
+    # Strip the app's own installation path to avoid false positive matching on repo dir name (e.g. /MCP_tool/)
+    if APP_DIR and APP_DIR in cmd_lower:
+        cmd_lower = cmd_lower.replace(APP_DIR, "")
     return any(keyword in cmd_lower for keyword in MCP_KEYWORDS)
+
+
+def is_owned_process(pid: int) -> bool:
+    """Verify that PID belongs to the current user."""
+    try:
+        return os.stat(f"/proc/{pid}").st_uid == os.getuid()
+    except (FileNotFoundError, ProcessLookupError, PermissionError, OSError):
+        return False
+
+
+def is_target_mcp_process(pid: int) -> bool:
+    """Verify target process command line matches an MCP signature."""
+    try:
+        if os.path.exists(f"/proc/{pid}/cmdline"):
+            with open(f"/proc/{pid}/cmdline", "rb") as f:
+                cmd = f.read().replace(b"\x00", b" ").decode("utf-8", errors="replace").strip()
+                if cmd:
+                    return is_mcp_command(cmd)
+    except Exception:
+        pass
+    # Fallback to scanning running MCP processes
+    running = get_running_mcp_processes()
+    return any(p["pid"] == pid for p in running)
+
 
 def get_running_mcp_processes() -> List[Dict[str, Any]]:
     """Scan OS processes using ps and return list of running MCP servers."""
@@ -75,19 +111,42 @@ def get_running_mcp_processes() -> List[Dict[str, Any]]:
         pass
     return results
 
+
 def kill_process_by_pid(pid: int) -> bool:
     """Send SIGTERM to process PID, and SIGKILL if it does not exit."""
-    if pid <= 1:
+    if pid <= 1 or pid == os.getpid():
         return False
+    if not is_owned_process(pid):
+        return False
+    if not is_target_mcp_process(pid):
+        return False
+
     try:
         os.kill(pid, signal.SIGTERM)
-        return True
-    except ProcessLookupError:
+    except (ProcessLookupError, PermissionError, OSError):
         return False
-    except PermissionError:
-        return False
-    except Exception:
-        return False
+
+    # Poll briefly (up to 1.5s) to check if process terminates
+    deadline = time.time() + 1.5
+    while time.time() < deadline:
+        try:
+            os.kill(pid, 0)
+        except ProcessLookupError:
+            return True
+        except OSError:
+            break
+        time.sleep(0.1)
+
+    # If still alive, escalate to SIGKILL
+    try:
+        os.kill(pid, 0)
+        os.kill(pid, signal.SIGKILL)
+        time.sleep(0.05)
+    except (ProcessLookupError, OSError):
+        pass
+
+    return True
+
 
 def start_mcp_process(command_list: List[str]) -> Optional[int]:
     """Launch detached background process for an MCP server."""

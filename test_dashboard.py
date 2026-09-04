@@ -209,3 +209,50 @@ def test_api_data_includes_os_processes():
     assert "os_processes" in data
     assert isinstance(data["os_processes"], list)
 
+
+def test_kill_pid_invalid_pid_type():
+    client = TestClient(app)
+    res = client.post("/kill_pid", json={"pid": "not_an_int"})
+    assert res.status_code == 400
+    assert res.json()["ok"] is False
+    assert res.json()["error"] == "Invalid PID"
+
+
+def test_start_server_malformed_command():
+    client = TestClient(app)
+    res = client.post("/start_server", json={"command": 'python "unclosed quote'})
+    assert res.status_code == 400
+    assert res.json()["ok"] is False
+    assert res.json()["error"] == "Malformed command"
+
+
+def test_gather_dashboard_data_matching_and_non_string_args(monkeypatch):
+    import app.main as main_mod
+
+    mock_processes = [
+        {"pid": 101, "name": "caveman-mcp", "cmd": "python /path/caveman.py", "cpu": "0.1%", "mem": "0.5%", "status": "RUNNING"},
+        {"pid": 102, "name": "mcp-server", "cmd": "node /path/generic.js", "cpu": "0.2%", "mem": "0.6%", "status": "RUNNING"},
+    ]
+    monkeypatch.setattr(main_mod, "get_running_mcp_processes", lambda: mock_processes)
+
+    # Mock _load_mcp_servers to return multiple servers, some with non-string args
+    monkeypatch.setattr(main_mod, "_load_mcp_servers", lambda: {
+        "server1": {"source": "agycli", "command": {"command": "python", "args": ["/path/caveman.py", 8080, True]}},
+        "server2": {"source": "opencode", "command": {"command": "python", "args": ["/path/caveman.py"]}},  # same cmd, but PID 101 already claimed!
+        "server3": {"source": "opencode", "command": {"command": "node", "args": ["/path/other.js"]}},
+    })
+
+    data = main_mod._gather_dashboard_data()
+    # server1 should claim PID 101
+    assert data["servers"]["server1"]["pid"] == 101
+    assert data["servers"]["server1"]["is_running"] is True
+
+    # server2 cannot claim PID 101 because server1 already claimed it
+    assert data["servers"]["server2"]["pid"] is None
+    assert data["servers"]["server2"]["is_running"] is False
+
+    # server3 does not match
+    assert data["servers"]["server3"]["pid"] is None
+    assert data["servers"]["server3"]["is_running"] is False
+
+
