@@ -1,59 +1,110 @@
 import pathlib
 import json
 import os
-from fastapi import FastAPI, Request, Form
-from fastapi.responses import HTMLResponse, RedirectResponse
+from fastapi import FastAPI, Request
+from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.templating import Jinja2Templates
 from fastapi.concurrency import run_in_threadpool
 from app.proxy import handle_proxy
-from app.database import get_db_conn
+from app.database import get_db_conn, init_db
 from app.config_manager import toggle_mcp, strip_jsonc_comments
 
 app = FastAPI(title="MCP Manager & AI Proxy Dashboard")
+init_db()
 
 BASE_DIR = pathlib.Path(__file__).parent
 templates = Jinja2Templates(directory=str(BASE_DIR / "templates"))
 
-@app.post("/v1/{path:path}")
-async def proxy_route(request: Request, path: str):
-    return await handle_proxy(request, path)
+OPENCODE_CONFIG = os.path.expanduser("~/.config/opencode/opencode.jsonc")
+AGYCLI_CONFIG = os.path.expanduser("~/.gemini/config/mcp_config.json")
 
-@app.get("/", response_class=HTMLResponse)
-async def read_root(request: Request):
-    def get_keys():
-        with get_db_conn() as conn:
-            return conn.execute("SELECT id, provider, key_value FROM api_keys").fetchall()
-    keys = await run_in_threadpool(get_keys)
-    
+
+def _gather_dashboard_data() -> dict:
+    """Collect keys, usage, and servers for both HTML and JSON views."""
+    with get_db_conn() as conn:
+        raw_keys = conn.execute("SELECT id, provider, key_value FROM api_keys").fetchall()
+        raw_usage = conn.execute(
+            "SELECT a.provider, a.key_value, COALESCE(SUM(t.tokens),0) as total "
+            "FROM api_keys a LEFT JOIN token_usage t ON a.id = t.key_id "
+            "GROUP BY a.id"
+        ).fetchall()
+
+    keys = [{"id": r[0], "provider": r[1], "key_value": r[2]} for r in raw_keys]
+    usage = [{"provider": r[0], "key_value": r[1], "total_tokens": r[2]} for r in raw_usage]
+
     servers = {}
-    for config_file in ["opencode.jsonc", "mcp_config.json"]:
+    for label, config_file in [("opencode", OPENCODE_CONFIG), ("agycli", AGYCLI_CONFIG)]:
         if os.path.exists(config_file):
             try:
                 with open(config_file, "r", encoding="utf-8") as f:
                     data = json.loads(strip_jsonc_comments(f.read()))
                     for name, cmd in data.get("mcpServers", {}).items():
-                        servers[name] = {"config_file": config_file, "command": cmd}
+                        servers[name] = {"config_file": config_file, "source": label, "command": cmd}
             except Exception:
                 pass
-                
+
+    return {
+        "keys": keys,
+        "servers": servers,
+        "usage": usage,
+        "total_tokens": sum(u["total_tokens"] for u in usage),
+        "total_keys": len(keys),
+        "total_servers": len(servers),
+    }
+
+
+@app.post("/v1/{path:path}")
+async def proxy_route(request: Request, path: str):
+    return await handle_proxy(request, path)
+
+
+@app.get("/", response_class=HTMLResponse)
+async def read_root(request: Request):
+    data = await run_in_threadpool(_gather_dashboard_data)
     return templates.TemplateResponse(
-        request=request, name="index.html", context={"request": request, "keys": keys, "servers": servers}
+        request=request, name="index.html",
+        context={"request": request, **data},
     )
 
+
+@app.get("/api/data")
+async def api_data():
+    data = await run_in_threadpool(_gather_dashboard_data)
+    return JSONResponse(data)
+
+
 @app.post("/add_key")
-async def add_key(key: str = Form(...)):
+async def add_key(request: Request):
+    body = await request.json()
+    provider = body.get("provider", "openai")
+    key = body["key"]
+
     def insert_key():
         with get_db_conn() as conn:
-            conn.execute("INSERT INTO api_keys (provider, key_value) VALUES (?, ?)", ("openai", key))
+            conn.execute("INSERT INTO api_keys (provider, key_value) VALUES (?, ?)", (provider, key))
     await run_in_threadpool(insert_key)
-    return RedirectResponse(url="/", status_code=303)
+    return JSONResponse({"ok": True})
+
+
+@app.post("/delete_key")
+async def delete_key(request: Request):
+    body = await request.json()
+    key_id = body["key_id"]
+
+    def remove_key():
+        with get_db_conn() as conn:
+            conn.execute("DELETE FROM api_keys WHERE id = ?", (key_id,))
+    await run_in_threadpool(remove_key)
+    return JSONResponse({"ok": True})
+
 
 @app.post("/toggle_server")
-async def toggle_server(server_name: str = Form(...), enable: str = Form(...), config_file: str = Form("mcp_config.json"), command: str = Form("{}")):
-    is_enable = enable.lower() == "true"
-    try:
-        cmd_dict = json.loads(command)
-    except:
-        cmd_dict = {}
-    await run_in_threadpool(toggle_mcp, config_file, server_name, is_enable, cmd_dict)
-    return RedirectResponse(url="/", status_code=303)
+async def toggle_server(request: Request):
+    body = await request.json()
+    server_name = body["server_name"]
+    enable = body.get("enable", False)
+    config_file = body.get("config_file", AGYCLI_CONFIG)
+    command = body.get("command", {})
+
+    await run_in_threadpool(toggle_mcp, config_file, server_name, enable, command)
+    return JSONResponse({"ok": True})
