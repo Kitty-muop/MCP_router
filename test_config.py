@@ -1,5 +1,6 @@
 import json
 import os
+import stat
 import tempfile
 import pytest
 from app.config_manager import toggle_mcp
@@ -65,3 +66,63 @@ def test_toggle_mcp_missing_mcpservers_key(tmp_path):
     data = json.loads(config_file.read_text())
     assert data["mcpServers"]["new-mcp"] == cmd
     assert data["otherKey"] == 123
+
+
+def test_toggle_mcp_readonly_file(tmp_path):
+    config_file = tmp_path / "readonly.json"
+    config_file.write_text(json.dumps({"mcpServers": {"test": {"command": "echo"}}}))
+    # Make file read-only
+    os.chmod(str(config_file), stat.S_IREAD)
+    bak_file = tmp_path / "readonly.json.bak"
+
+    try:
+        result = toggle_mcp(str(config_file), "test", False)
+        assert result is False
+        assert not bak_file.exists()
+    finally:
+        # Restore write permissions for cleanup
+        os.chmod(str(config_file), stat.S_IWRITE | stat.S_IREAD)
+
+
+def test_toggle_mcp_enable_without_command(tmp_path):
+    config_file = tmp_path / "config.json"
+    initial_content = json.dumps({"mcpServers": {}})
+    config_file.write_text(initial_content)
+
+    result = toggle_mcp(str(config_file), "test", True, command=None)
+    assert result is False
+    # File content should remain untouched
+    assert config_file.read_text() == initial_content
+    bak_file = tmp_path / "config.json.bak"
+    assert not bak_file.exists()
+
+
+def test_toggle_mcp_jsonc_support(tmp_path):
+    config_file = tmp_path / "opencode.jsonc"
+    jsonc_content = """{
+        // OpenCode configuration comment
+        /* Multi-line
+           comment */
+        "mcpServers": {
+            "existing-mcp": {
+                "command": "test-cmd",
+            },
+        },
+    }"""
+    config_file.write_text(jsonc_content)
+
+    cmd = {"command": "python", "args": ["agent.py"]}
+    result = toggle_mcp(str(config_file), "new-mcp", True, command=cmd)
+
+    assert result is True
+    data = json.loads(config_file.read_text())
+    assert data["mcpServers"]["new-mcp"] == cmd
+    assert data["mcpServers"]["existing-mcp"]["command"] == "test-cmd"
+
+
+def test_toggle_mcp_invalid_root_type(tmp_path):
+    config_file = tmp_path / "array.json"
+    config_file.write_text(json.dumps(["item1", "item2"]))
+
+    result = toggle_mcp(str(config_file), "test", False)
+    assert result is False
