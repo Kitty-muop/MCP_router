@@ -1,44 +1,623 @@
-<!-- app/templates/index.html -->
 <!DOCTYPE html>
-<html>
-<head><title>MCP Manager</title></head>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Token Router — MCP Manager & AI Proxy</title>
+    <style>
+        /* ── Design Tokens ── */
+        :root {
+            --bg-base: #06090f;
+            --bg-surface: rgba(15, 23, 42, 0.6);
+            --bg-elevated: rgba(30, 41, 59, 0.4);
+            --bg-input: rgba(10, 15, 28, 0.8);
+            --glass-border: rgba(148, 163, 184, 0.08);
+            --glass-glow: rgba(59, 130, 246, 0.06);
+            --border: rgba(51, 65, 85, 0.5);
+            --border-hover: rgba(99, 102, 241, 0.4);
+            --text-primary: #f1f5f9;
+            --text-secondary: #94a3b8;
+            --text-muted: #475569;
+            --accent: #6366f1;
+            --accent-hover: #818cf8;
+            --green: #34d399;
+            --green-bg: rgba(52, 211, 153, 0.1);
+            --red: #f87171;
+            --red-bg: rgba(248, 113, 113, 0.1);
+            --orange: #fbbf24;
+            --orange-bg: rgba(251, 191, 36, 0.1);
+            --purple: #a78bfa;
+            --purple-bg: rgba(167, 139, 250, 0.1);
+            --cyan: #22d3ee;
+            --cyan-bg: rgba(34, 211, 238, 0.1);
+            --radius: 16px;
+            --radius-sm: 10px;
+            --radius-xs: 6px;
+            --blur: 16px;
+            --transition: 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: var(--bg-base);
+            color: var(--text-primary);
+            min-height: 100vh;
+            line-height: 1.6;
+            overflow-x: hidden;
+        }
+        body::before {
+            content: '';
+            position: fixed;
+            top: -50%; left: -50%;
+            width: 200%; height: 200%;
+            background:
+                radial-gradient(ellipse at 20% 50%, rgba(99, 102, 241, 0.08) 0%, transparent 50%),
+                radial-gradient(ellipse at 80% 20%, rgba(139, 92, 246, 0.06) 0%, transparent 50%),
+                radial-gradient(ellipse at 60% 80%, rgba(34, 211, 238, 0.04) 0%, transparent 50%);
+            z-index: -1;
+            pointer-events: none;
+        }
+
+        /* ── Header ── */
+        .header {
+            position: sticky; top: 0; z-index: 100;
+            background: rgba(6, 9, 15, 0.85);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            border-bottom: 1px solid var(--glass-border);
+            padding: 14px 32px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+        .brand { display: flex; align-items: center; gap: 14px; }
+        .logo {
+            width: 38px; height: 38px;
+            background: linear-gradient(135deg, var(--accent), var(--purple));
+            border-radius: 12px;
+            display: flex; align-items: center; justify-content: center;
+            font-size: 18px; color: white;
+            box-shadow: 0 0 20px rgba(99, 102, 241, 0.3);
+        }
+        .brand h1 { font-size: 19px; font-weight: 700; letter-spacing: -0.5px; }
+        .brand h1 em { font-style: normal; color: var(--accent); }
+        .brand small { display: block; font-size: 11px; color: var(--text-muted); font-weight: 400; letter-spacing: 0.5px; }
+        .status {
+            display: flex; align-items: center; gap: 8px;
+            font-size: 12px; color: var(--green); font-weight: 500;
+            letter-spacing: 0.3px;
+        }
+        .status-dot {
+            width: 7px; height: 7px; border-radius: 50%;
+            background: var(--green);
+            box-shadow: 0 0 10px var(--green);
+            animation: blink 2.5s ease-in-out infinite;
+        }
+        @keyframes blink { 0%,100%{opacity:1} 50%{opacity:0.3} }
+
+        /* ── Container ── */
+        .container { max-width: 1200px; margin: 0 auto; padding: 28px 28px; }
+
+        /* ── Metric Cards ── */
+        .metrics { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; margin-bottom: 24px; }
+        .metric {
+            position: relative;
+            background: var(--bg-surface);
+            backdrop-filter: blur(var(--blur));
+            -webkit-backdrop-filter: blur(var(--blur));
+            border: 1px solid var(--glass-border);
+            border-radius: var(--radius);
+            padding: 22px 24px;
+            overflow: hidden;
+            transition: border-color var(--transition), box-shadow var(--transition);
+        }
+        .metric:hover {
+            border-color: var(--border-hover);
+            box-shadow: 0 4px 30px var(--glass-glow);
+        }
+        .metric::after {
+            content: '';
+            position: absolute; top: 0; right: 0;
+            width: 80px; height: 80px;
+            border-radius: 50%;
+            filter: blur(40px);
+            opacity: 0.15;
+            pointer-events: none;
+        }
+        .metric:nth-child(1)::after { background: var(--accent); }
+        .metric:nth-child(2)::after { background: var(--green); }
+        .metric:nth-child(3)::after { background: var(--purple); }
+        .metric:nth-child(4)::after { background: var(--cyan); }
+        .metric-label { font-size: 11px; text-transform: uppercase; letter-spacing: 1.2px; color: var(--text-muted); font-weight: 600; margin-bottom: 6px; }
+        .metric-val { font-size: 30px; font-weight: 800; font-variant-numeric: tabular-nums; letter-spacing: -1px; }
+        .metric-val.v1 { color: var(--accent); }
+        .metric-val.v2 { color: var(--green); }
+        .metric-val.v3 { color: var(--purple); }
+        .metric-val.v4 { color: var(--cyan); font-size: 17px; letter-spacing: 0; font-weight: 600; }
+        .metric-sub { font-size: 11px; color: var(--text-muted); margin-top: 2px; }
+
+        /* ── Glass Card ── */
+        .card {
+            background: var(--bg-surface);
+            backdrop-filter: blur(var(--blur));
+            -webkit-backdrop-filter: blur(var(--blur));
+            border: 1px solid var(--glass-border);
+            border-radius: var(--radius);
+            margin-bottom: 18px;
+            overflow: hidden;
+            transition: border-color var(--transition);
+        }
+        .card:hover { border-color: rgba(99, 102, 241, 0.15); }
+        .card-head {
+            display: flex; align-items: center; justify-content: space-between;
+            padding: 16px 24px;
+            border-bottom: 1px solid var(--glass-border);
+        }
+        .card-title { display: flex; align-items: center; gap: 10px; font-size: 14px; font-weight: 600; }
+        .card-icon {
+            width: 30px; height: 30px; border-radius: var(--radius-xs);
+            display: flex; align-items: center; justify-content: center;
+            font-size: 14px;
+        }
+        .card-icon.k { background: rgba(99, 102, 241, 0.12); }
+        .card-icon.s { background: var(--green-bg); }
+        .card-icon.u { background: var(--purple-bg); }
+
+        .toggle-btn {
+            background: none; border: 1px solid var(--border);
+            color: var(--text-secondary); border-radius: 20px;
+            padding: 5px 14px; font-size: 12px; cursor: pointer;
+            font-weight: 500; transition: all var(--transition);
+        }
+        .toggle-btn:hover { border-color: var(--accent); color: var(--accent); }
+
+        /* ── Table ── */
+        table { width: 100%; border-collapse: collapse; }
+        th {
+            text-align: left; padding: 10px 24px;
+            font-size: 10px; text-transform: uppercase; letter-spacing: 1.2px;
+            color: var(--text-muted); font-weight: 600;
+            background: rgba(15, 23, 42, 0.4);
+            border-bottom: 1px solid var(--glass-border);
+        }
+        td {
+            padding: 14px 24px; font-size: 13px;
+            border-bottom: 1px solid var(--glass-border);
+            vertical-align: middle;
+        }
+        tr:last-child td { border-bottom: none; }
+        tr:hover td { background: rgba(99, 102, 241, 0.03); }
+
+        /* ── Badges ── */
+        .badge {
+            display: inline-flex; align-items: center; gap: 5px;
+            padding: 3px 10px; border-radius: 20px;
+            font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px;
+        }
+        .badge.openai { background: var(--green-bg); color: var(--green); }
+        .badge.anthropic { background: var(--orange-bg); color: var(--orange); }
+        .badge.google { background: var(--cyan-bg); color: var(--cyan); }
+        .badge.online { background: var(--green-bg); color: var(--green); }
+        .badge.online::before { content:''; width:5px; height:5px; border-radius:50%; background:var(--green); }
+        .badge.opencode { background: var(--cyan-bg); color: var(--cyan); }
+        .badge.agycli { background: var(--purple-bg); color: var(--purple); }
+
+        .mono { font-family: 'SF Mono','Fira Code','JetBrains Mono',monospace; font-size: 12px; color: var(--text-secondary); letter-spacing: 0.3px; }
+        .key-cell {
+            cursor: pointer;
+            user-select: all;
+            transition: color var(--transition);
+        }
+        .key-cell:hover {
+            color: var(--accent-hover);
+            text-decoration: underline;
+            text-underline-offset: 3px;
+        }
+        .tok { font-family: 'SF Mono','Fira Code',monospace; font-weight: 700; color: var(--purple); }
+
+        /* ── Buttons ── */
+        .btn {
+            display: inline-flex; align-items: center; gap: 5px;
+            padding: 7px 16px; border: none; border-radius: var(--radius-xs);
+            font-size: 12px; font-weight: 600; cursor: pointer;
+            transition: all var(--transition); font-family: inherit;
+        }
+        .btn-accent { background: var(--accent); color: white; }
+        .btn-accent:hover { background: var(--accent-hover); box-shadow: 0 0 16px rgba(99,102,241,0.3); }
+        .btn-ghost { background: none; color: var(--text-secondary); border: 1px solid var(--border); }
+        .btn-ghost:hover { border-color: var(--accent); color: var(--accent); }
+        .btn-red { background: none; color: var(--red); border: 1px solid rgba(248,113,113,0.2); }
+        .btn-red:hover { background: var(--red-bg); }
+        .btn-orange { background: none; color: var(--orange); border: 1px solid rgba(251,191,36,0.2); }
+        .btn-orange:hover { background: var(--orange-bg); }
+
+        /* ── Forms ── */
+        .add-panel {
+            max-height: 0; overflow: hidden;
+            padding: 0 24px;
+            transition: max-height 0.3s ease, padding 0.3s ease;
+            background: rgba(15, 23, 42, 0.5);
+            border-top: 1px solid transparent;
+        }
+        .add-panel.open {
+            max-height: 300px;
+            padding: 20px 24px;
+            border-top-color: var(--glass-border);
+        }
+        .add-panel .row { display: flex; gap: 12px; align-items: end; flex-wrap: wrap; }
+        .fg { display: flex; flex-direction: column; gap: 4px; }
+        .fg label { font-size: 10px; text-transform: uppercase; letter-spacing: 1px; color: var(--text-muted); font-weight: 600; }
+        input[type="text"], select, textarea {
+            background: var(--bg-input); border: 1px solid var(--border);
+            border-radius: var(--radius-xs); padding: 9px 14px;
+            color: var(--text-primary); font-size: 13px; font-family: inherit;
+            outline: none; transition: border-color var(--transition);
+        }
+        input[type="text"]:focus, select:focus, textarea:focus { border-color: var(--accent); box-shadow: 0 0 0 2px rgba(99,102,241,0.15); }
+        select { min-width: 130px; }
+        textarea { font-family: 'SF Mono','Fira Code',monospace; font-size: 11px; resize: vertical; min-height: 38px; }
+
+        /* ── Usage Bar ── */
+        .bar-bg { background: rgba(15,23,42,0.6); border-radius: 6px; height: 20px; overflow: hidden; }
+        .bar-fill { height: 100%; border-radius: 6px; background: linear-gradient(90deg, var(--accent), var(--purple)); transition: width 0.5s ease; }
+
+        /* ── Toast ── */
+        #toasts {
+            position: fixed; top: 20px; right: 20px; z-index: 9999;
+            display: flex; flex-direction: column; gap: 8px;
+            pointer-events: none;
+        }
+        .toast {
+            padding: 12px 20px; border-radius: var(--radius-sm);
+            font-size: 13px; font-weight: 500;
+            backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
+            border: 1px solid var(--glass-border);
+            animation: slideIn 0.3s ease, fadeOut 0.3s ease 2.7s forwards;
+            max-width: 340px; pointer-events: auto;
+            box-shadow: 0 8px 30px rgba(0, 0, 0, 0.4);
+        }
+        .toast.ok { background: rgba(52,211,153,0.15); color: var(--green); border-color: rgba(52,211,153,0.25); }
+        .toast.err { background: rgba(248,113,113,0.15); color: var(--red); border-color: rgba(248,113,113,0.25); }
+        @keyframes slideIn { from{transform:translateX(100%);opacity:0} to{transform:translateX(0);opacity:1} }
+        @keyframes fadeOut { to{opacity:0;transform:translateY(-10px)} }
+
+        /* ── Modal ── */
+        .modal-overlay {
+            display: none; position: fixed; inset: 0;
+            background: rgba(0,0,0,0.6); backdrop-filter: blur(4px);
+            -webkit-backdrop-filter: blur(4px);
+            z-index: 8000; align-items: center; justify-content: center;
+        }
+        .modal-overlay.open { display: flex; }
+        .modal-box {
+            background: rgba(30,41,59,0.95); backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            border: 1px solid var(--glass-border); border-radius: var(--radius);
+            padding: 28px 32px; max-width: 400px; width: 90%;
+            text-align: center;
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.5);
+        }
+        .modal-box h3 { font-size: 16px; margin-bottom: 8px; }
+        .modal-box p { font-size: 13px; color: var(--text-secondary); margin-bottom: 20px; }
+        .modal-actions { display: flex; gap: 10px; justify-content: center; }
+
+        /* ── Empty ── */
+        .empty { padding: 40px; text-align: center; color: var(--text-muted); font-size: 13px; }
+        .empty .ico { font-size: 28px; margin-bottom: 6px; opacity: 0.4; }
+
+        /* ── Responsive ── */
+        @media (max-width: 900px) { .metrics { grid-template-columns: repeat(2, 1fr); } }
+        @media (max-width: 600px) {
+            .container { padding: 16px; }
+            .header { padding: 12px 16px; }
+            .metrics { grid-template-columns: 1fr 1fr; gap: 10px; }
+            .add-panel .row { flex-direction: column; }
+        }
+    </style>
+</head>
 <body>
-    <h1>API Keys</h1>
-    <ul>
-    {% for key in keys %}
-        <li>{{ key[1] }}: {{ key[2] }}</li>
-    {% endfor %}
-    </ul>
-    <form action="/add_key" method="post">
-        <input name="key" type="text" placeholder="Enter API Key">
-        <button type="submit">Add Key</button>
-    </form>
-    <h1>MCP Servers</h1>
-    <ul>
-    {% for name, info in servers.items() %}
-        <li>
-            <strong>{{ name }}</strong> (in {{ info.config_file }})
-            <pre>{{ info.command | tojson }}</pre>
-            <form action="/toggle_server" method="post" style="display:inline;">
-                <input type="hidden" name="server_name" value="{{ name }}">
-                <input type="hidden" name="config_file" value="{{ info.config_file }}">
-                <input type="hidden" name="enable" value="false">
-                <input type="hidden" name="command" value="{{ info.command | tojson | forceescape }}">
-                <button type="submit">Disable</button>
-            </form>
-        </li>
-    {% else %}
-        <li>No active servers found.</li>
-    {% endfor %}
-    </ul>
-    
-    <h2>Enable a New Server</h2>
-    <form action="/toggle_server" method="post">
-        <input type="text" name="server_name" placeholder="Server Name" required>
-        <input type="text" name="config_file" placeholder="Config File (e.g. mcp_config.json)" value="mcp_config.json" required>
-        <input type="hidden" name="enable" value="true">
-        <textarea name="command" placeholder='{"command": "node", "args": ["..."]}' required></textarea>
-        <button type="submit">Enable Server</button>
-    </form>
+
+<div class="header">
+    <div class="brand">
+        <div class="logo">⚡</div>
+        <div><h1><em>Token</em> Router</h1><small>MCP Manager &amp; AI Proxy Dashboard</small></div>
+    </div>
+    <div class="status"><div class="status-dot"></div>Proxy Active · localhost:8000</div>
+</div>
+
+<div class="container">
+    <!-- Metrics -->
+    <div class="metrics">
+        <div class="metric"><div class="metric-label">API Keys</div><div class="metric-val v1" id="m-keys">{{ total_keys }}</div><div class="metric-sub">Active provider keys</div></div>
+        <div class="metric"><div class="metric-label">MCP Servers</div><div class="metric-val v2" id="m-servers">{{ total_servers }}</div><div class="metric-sub">OpenCode &amp; AgyCLI</div></div>
+        <div class="metric"><div class="metric-label">Tokens Routed</div><div class="metric-val v3" id="m-tokens">{{ "{:,}".format(total_tokens) }}</div><div class="metric-sub">All keys combined</div></div>
+        <div class="metric"><div class="metric-label">Proxy Endpoint</div><div class="metric-val v4">POST /v1/*</div><div class="metric-sub">Intercept &amp; track LLM calls</div></div>
+    </div>
+
+    <!-- API Keys -->
+    <div class="card">
+        <div class="card-head">
+            <div class="card-title"><div class="card-icon k">🔑</div>API Keys</div>
+            <button class="toggle-btn" onclick="togglePanel('key-panel')">+ Add Key</button>
+        </div>
+        <div id="keys-table"></div>
+        <div class="add-panel" id="key-panel">
+            <div class="row">
+                <div class="fg"><label>Provider</label><select id="f-provider"><option value="openai">OpenAI</option><option value="anthropic">Anthropic</option><option value="google">Google</option></select></div>
+                <div class="fg" style="flex:1"><label>API Key</label><input type="text" id="f-key" placeholder="sk-... or key-..." style="width:100%" onkeydown="if(event.key==='Enter')addKey()"></div>
+                <button class="btn btn-accent" onclick="addKey()">+ Add Key</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- MCP Servers -->
+    <div class="card">
+        <div class="card-head">
+            <div class="card-title"><div class="card-icon s">⚙️</div>MCP Servers</div>
+            <button class="toggle-btn" onclick="togglePanel('srv-panel')">+ Add Server</button>
+        </div>
+        <div id="servers-table"></div>
+        <div class="add-panel" id="srv-panel">
+            <div class="row">
+                <div class="fg"><label>Name</label><input type="text" id="f-sname" placeholder="my-server" style="min-width:160px"></div>
+                <div class="fg"><label>Config</label><select id="f-sconfig"><option value="agycli">AgyCLI</option><option value="opencode">OpenCode</option></select></div>
+                <div class="fg" style="flex:1"><label>Command (JSON)</label><textarea id="f-scmd" placeholder='{"command":"node","args":["server.js"]}'></textarea></div>
+                <button class="btn btn-accent" onclick="addServer()">+ Enable</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Token Usage -->
+    <div class="card" id="usage-card" style="display:none">
+        <div class="card-head">
+            <div class="card-title"><div class="card-icon u">📊</div>Token Usage by Key</div>
+        </div>
+        <div id="usage-table"></div>
+    </div>
+</div>
+
+<!-- Toast Container -->
+<div id="toasts"></div>
+
+<!-- Delete Modal -->
+<div class="modal-overlay" id="del-modal">
+    <div class="modal-box">
+        <h3>Remove API Key?</h3>
+        <p>This key will be deleted. Token history will remain.</p>
+        <div class="modal-actions">
+            <button class="btn btn-ghost" onclick="closeModal()">Cancel</button>
+            <button class="btn btn-red" id="del-confirm" onclick="confirmDelete()">Delete</button>
+        </div>
+    </div>
+</div>
+
+<script>
+const STATE = {{ {"keys": keys, "servers": servers, "usage": usage, "total_tokens": total_tokens, "total_keys": total_keys, "total_servers": total_servers} | tojson }};
+const CONFIG_MAP = { agycli: "{{ '~/.gemini/config/mcp_config.json' | replace('~', '') }}", opencode: "{{ '~/.config/opencode/opencode.jsonc' | replace('~', '') }}" };
+let pendingDeleteId = null;
+
+function esc(str) {
+    if (str === null || str === undefined) return '';
+    return String(str)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+}
+
+function render() {
+    // Metrics
+    document.getElementById('m-keys').textContent = STATE.total_keys;
+    document.getElementById('m-servers').textContent = STATE.total_servers;
+    document.getElementById('m-tokens').textContent = STATE.total_tokens.toLocaleString();
+
+    // Keys table
+    const kt = document.getElementById('keys-table');
+    if (!STATE.keys || STATE.keys.length === 0) {
+        kt.innerHTML = '<div class="empty"><div class="ico">🔑</div>No API keys configured</div>';
+    } else {
+        let h = '<table><thead><tr><th>Provider</th><th>Key</th><th>Tokens</th><th>Actions</th></tr></thead><tbody>';
+        STATE.keys.forEach(k => {
+            const u = (STATE.usage || []).find(item => item.key_value === k.key_value);
+            const tok = u ? u.total_tokens : 0;
+            const masked = k.key_value.length > 12
+                ? k.key_value.slice(0, 8) + '···' + k.key_value.slice(-4)
+                : (k.key_value.length > 4 ? k.key_value.slice(0, 3) + '···' + k.key_value.slice(-2) : '••••••');
+            h += `<tr>
+                <td><span class="badge ${esc(k.provider)}">${esc(k.provider)}</span></td>
+                <td><span class="mono key-cell" data-full="${esc(k.key_value)}" data-masked="${esc(masked)}" onclick="toggleKey(this)" title="Click to reveal/hide key">${esc(masked)}</span></td>
+                <td><span class="tok">${tok.toLocaleString()}</span></td>
+                <td><button class="btn btn-red" onclick="askDelete(${k.id})">✕ Remove</button></td>
+            </tr>`;
+        });
+        h += '</tbody></table>';
+        kt.innerHTML = h;
+    }
+
+    // Servers table
+    const st = document.getElementById('servers-table');
+    const srvEntries = Object.entries(STATE.servers || {});
+    if (srvEntries.length === 0) {
+        st.innerHTML = '<div class="empty"><div class="ico">⚙️</div>No active MCP servers<br><span style="font-size:11px">Scanning opencode.jsonc &amp; mcp_config.json</span></div>';
+    } else {
+        let h = '<table><thead><tr><th>Name</th><th>Source</th><th>Status</th><th>Command</th><th>Actions</th></tr></thead><tbody>';
+        srvEntries.forEach(([name, info]) => {
+            const cmdStr = info.command && info.command.command
+                ? info.command.command + ' ' + (info.command.args || []).join(' ')
+                : JSON.stringify(info.command).slice(0, 50);
+            h += `<tr>
+                <td><strong>${esc(name)}</strong></td>
+                <td><span class="badge ${esc(info.source)}">${esc(info.source)}</span></td>
+                <td><span class="badge online">Online</span></td>
+                <td><span class="mono">${esc(cmdStr.length > 45 ? cmdStr.slice(0, 45) + '…' : cmdStr)}</span></td>
+                <td><button class="btn btn-orange" data-name="${esc(name)}" data-config="${esc(info.config_file)}" data-cmd="${esc(encodeURIComponent(JSON.stringify(info.command)))}" onclick="handleDisable(this)">⏻ Disable</button></td>
+            </tr>`;
+        });
+        h += '</tbody></table>';
+        st.innerHTML = h;
+    }
+
+    // Usage
+    const uc = document.getElementById('usage-card');
+    const ut = document.getElementById('usage-table');
+    if (STATE.usage && STATE.usage.length > 0) {
+        uc.style.display = '';
+        let h = '<table><thead><tr><th>Provider</th><th>Key</th><th>Tokens</th><th style="width:35%">Usage</th></tr></thead><tbody>';
+        STATE.usage.forEach(u => {
+            const pct = STATE.total_tokens > 0 ? Math.round(u.total_tokens / STATE.total_tokens * 100) : 0;
+            const masked = u.key_value.length > 12
+                ? u.key_value.slice(0, 8) + '···' + u.key_value.slice(-4)
+                : (u.key_value.length > 4 ? u.key_value.slice(0, 3) + '···' + u.key_value.slice(-2) : '••••••');
+            h += `<tr>
+                <td><span class="badge ${esc(u.provider)}">${esc(u.provider)}</span></td>
+                <td><span class="mono">${esc(masked)}</span></td>
+                <td><span class="tok">${u.total_tokens.toLocaleString()}</span></td>
+                <td><div class="bar-bg"><div class="bar-fill" style="width:${pct}%"></div></div></td>
+            </tr>`;
+        });
+        h += '</tbody></table>';
+        ut.innerHTML = h;
+    } else {
+        uc.style.display = 'none';
+    }
+}
+
+// ── API Helper ──
+async function fetchApi(url, body, successMsg = 'Done') {
+    try {
+        const r = await fetch(url, {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify(body)
+        });
+        const d = await r.json();
+        if (d.ok) {
+            await refresh();
+            toast(successMsg, 'ok');
+        } else {
+            toast('Error: ' + (d.error || d.detail || 'Request failed'), 'err');
+        }
+    } catch(e) {
+        toast('Network error', 'err');
+    }
+}
+
+async function refresh() {
+    try {
+        const r = await fetch('/api/data');
+        const d = await r.json();
+        Object.assign(STATE, d);
+        render();
+    } catch(e) {
+        console.error('Failed to refresh data', e);
+    }
+}
+
+// ── Actions ──
+function addKey() {
+    const provider = document.getElementById('f-provider').value;
+    const key = document.getElementById('f-key').value.trim();
+    if (!key) { toast('Enter an API key', 'err'); return; }
+    fetchApi('/add_key', { provider, key }, 'API key added');
+    document.getElementById('f-key').value = '';
+}
+
+function askDelete(id) {
+    pendingDeleteId = id;
+    document.getElementById('del-modal').classList.add('open');
+}
+
+function closeModal() {
+    document.getElementById('del-modal').classList.remove('open');
+    pendingDeleteId = null;
+}
+
+function confirmDelete() {
+    if (pendingDeleteId !== null && pendingDeleteId !== undefined) {
+        fetchApi('/delete_key', { key_id: pendingDeleteId }, 'API key removed');
+    }
+    closeModal();
+}
+
+function addServer() {
+    const name = document.getElementById('f-sname').value.trim();
+    const configLabel = document.getElementById('f-sconfig').value;
+    const cmdRaw = document.getElementById('f-scmd').value.trim();
+    if (!name || !cmdRaw) { toast('Fill all fields', 'err'); return; }
+    let command;
+    try {
+        command = JSON.parse(cmdRaw);
+        if (typeof command !== 'object' || command === null || Array.isArray(command)) {
+            toast('Command must be a JSON object', 'err');
+            return;
+        }
+    } catch(e) {
+        toast('Invalid JSON command', 'err');
+        return;
+    }
+    const srv = Object.values(STATE.servers || {}).find(s => s.source === configLabel);
+    const configFile = (srv && srv.config_file) ? srv.config_file : CONFIG_MAP[configLabel];
+    fetchApi('/toggle_server', { server_name: name, enable: true, config_file: configFile, command }, 'Server enabled');
+    document.getElementById('f-sname').value = '';
+    document.getElementById('f-scmd').value = '';
+}
+
+function disableServer(name, configFile, cmdEncoded) {
+    let command = {};
+    try {
+        command = typeof cmdEncoded === 'string' ? JSON.parse(decodeURIComponent(cmdEncoded)) : cmdEncoded;
+    } catch(e) {
+        try { command = JSON.parse(cmdEncoded); } catch(e2) {}
+    }
+    fetchApi('/toggle_server', { server_name: name, enable: false, config_file: configFile, command }, 'Server disabled');
+}
+
+function handleDisable(btn) {
+    disableServer(btn.dataset.name, btn.dataset.config, btn.dataset.cmd);
+}
+
+function toggleKey(el) {
+    const showing = el.textContent === el.dataset.full;
+    el.textContent = showing ? el.dataset.masked : el.dataset.full;
+}
+
+function togglePanel(id) {
+    const panel = document.getElementById(id);
+    const isOpen = panel.classList.toggle('open');
+    if (isOpen) {
+        const input = panel.querySelector('input[type="text"], textarea');
+        if (input) input.focus();
+    }
+}
+
+// ── Toast ──
+function toast(msg, type = 'ok') {
+    const toasts = document.getElementById('toasts');
+    const t = document.createElement('div');
+    t.className = 'toast ' + type;
+    t.textContent = msg;
+    toasts.appendChild(t);
+    setTimeout(() => {
+        t.remove();
+    }, 3000);
+}
+
+// ── Modal backdrop & ESC dismiss ──
+document.getElementById('del-modal').addEventListener('click', function(e) {
+    if (e.target === this) closeModal();
+});
+document.addEventListener('keydown', function(e) {
+    if (e.key === 'Escape') closeModal();
+});
+
+// ── Auto-refresh ──
+setInterval(refresh, 30000);
+
+// ── Init ──
+render();
+</script>
 </body>
 </html>
