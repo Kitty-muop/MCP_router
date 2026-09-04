@@ -394,8 +394,8 @@
 </div>
 
 <script>
-const STATE = {{ {"keys": keys, "servers": servers, "usage": usage, "total_tokens": total_tokens, "total_keys": total_keys, "total_servers": total_servers} | tojson }};
-const CONFIG_MAP = { agycli: "{{ '~/.gemini/config/mcp_config.json' | replace('~', '') }}", opencode: "{{ '~/.config/opencode/opencode.jsonc' | replace('~', '') }}" };
+const STATE = {{ {"keys": keys, "servers": servers, "usage": usage, "total_tokens": total_tokens, "total_keys": total_keys, "total_servers": total_servers, "config_paths": config_paths} | tojson }};
+const CONFIG_MAP = STATE.config_paths || {};
 let pendingDeleteId = null;
 
 function esc(str) {
@@ -497,11 +497,14 @@ async function fetchApi(url, body, successMsg = 'Done') {
         if (d.ok) {
             await refresh();
             toast(successMsg, 'ok');
+            return true;
         } else {
             toast('Error: ' + (d.error || d.detail || 'Request failed'), 'err');
+            return false;
         }
     } catch(e) {
         toast('Network error', 'err');
+        return false;
     }
 }
 
@@ -517,12 +520,15 @@ async function refresh() {
 }
 
 // ── Actions ──
-function addKey() {
+async function addKey() {
     const provider = document.getElementById('f-provider').value;
-    const key = document.getElementById('f-key').value.trim();
+    const keyInput = document.getElementById('f-key');
+    const key = keyInput.value.trim();
     if (!key) { toast('Enter an API key', 'err'); return; }
-    fetchApi('/add_key', { provider, key }, 'API key added');
-    document.getElementById('f-key').value = '';
+    const ok = await fetchApi('/add_key', { provider, key }, 'API key added');
+    if (ok) {
+        keyInput.value = '';
+    }
 }
 
 function askDelete(id) {
@@ -542,10 +548,13 @@ function confirmDelete() {
     closeModal();
 }
 
-function addServer() {
-    const name = document.getElementById('f-sname').value.trim();
-    const configLabel = document.getElementById('f-sconfig').value;
-    const cmdRaw = document.getElementById('f-scmd').value.trim();
+async function addServer() {
+    const nameInput = document.getElementById('f-sname');
+    const configSelect = document.getElementById('f-sconfig');
+    const cmdInput = document.getElementById('f-scmd');
+    const name = nameInput.value.trim();
+    const configLabel = configSelect.value;
+    const cmdRaw = cmdInput.value.trim();
     if (!name || !cmdRaw) { toast('Fill all fields', 'err'); return; }
     let command;
     try {
@@ -559,10 +568,12 @@ function addServer() {
         return;
     }
     const srv = Object.values(STATE.servers || {}).find(s => s.source === configLabel);
-    const configFile = (srv && srv.config_file) ? srv.config_file : CONFIG_MAP[configLabel];
-    fetchApi('/toggle_server', { server_name: name, enable: true, config_file: configFile, command }, 'Server enabled');
-    document.getElementById('f-sname').value = '';
-    document.getElementById('f-scmd').value = '';
+    const configFile = (srv && srv.config_file) ? srv.config_file : (CONFIG_MAP[configLabel] || configLabel);
+    const ok = await fetchApi('/toggle_server', { server_name: name, enable: true, config_file: configFile, command }, 'Server enabled');
+    if (ok) {
+        nameInput.value = '';
+        cmdInput.value = '';
+    }
 }
 
 function disableServer(name, configFile, cmdEncoded) {

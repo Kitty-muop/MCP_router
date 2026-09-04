@@ -39,6 +39,9 @@ def test_api_data_returns_json():
     assert "total_tokens" in data
     assert "total_keys" in data
     assert "total_servers" in data
+    assert "config_paths" in data
+    assert "agycli" in data["config_paths"]
+    assert "opencode" in data["config_paths"]
     assert isinstance(data["keys"], list)
     assert isinstance(data["servers"], dict)
     assert data["total_tokens"] == 0
@@ -129,3 +132,28 @@ def test_toggle_server_failure(monkeypatch):
     )
     assert response.status_code == 400
     assert response.json()["ok"] is False
+
+
+def test_toggle_server_label_resolution(monkeypatch):
+    called = {}
+
+    def mock_toggle(config_file, server_name, enable, command):
+        called["args"] = (config_file, server_name, enable, command)
+        return True
+
+    monkeypatch.setattr("app.main.toggle_mcp", mock_toggle)
+
+    client = TestClient(app)
+    response = client.post(
+        "/toggle_server",
+        json={
+            "server_name": "opencode-srv",
+            "enable": True,
+            "config_file": "opencode",
+            "command": {"command": "npx"},
+        },
+    )
+    assert response.status_code == 200
+    assert response.json()["ok"] is True
+    from app.main import OPENCODE_CONFIG
+    assert called["args"][0] == OPENCODE_CONFIG

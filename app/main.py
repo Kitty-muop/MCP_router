@@ -50,6 +50,7 @@ def _gather_dashboard_data() -> dict:
         "total_tokens": sum(u["total_tokens"] for u in usage),
         "total_keys": len(keys),
         "total_servers": len(servers),
+        "config_paths": {"agycli": AGYCLI_CONFIG, "opencode": OPENCODE_CONFIG},
     }
 
 
@@ -123,6 +124,12 @@ async def toggle_server(request: Request):
 
     enable = body.get("enable", False)
     config_file = body.get("config_file", AGYCLI_CONFIG)
+    if config_file == "agycli":
+        config_file = AGYCLI_CONFIG
+    elif config_file == "opencode":
+        config_file = OPENCODE_CONFIG
+    elif config_file:
+        config_file = os.path.expanduser(config_file)
     command = body.get("command", {})
 
     ok = await run_in_threadpool(toggle_mcp, config_file, server_name, enable, command)
