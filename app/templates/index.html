@@ -101,7 +101,7 @@
         .container { max-width: 1200px; margin: 0 auto; padding: 28px 28px; }
 
         /* ── Metric Cards ── */
-        .metrics { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; margin-bottom: 24px; }
+        .metrics { display: grid; grid-template-columns: repeat(5, 1fr); gap: 14px; margin-bottom: 24px; }
         .metric {
             position: relative;
             background: var(--bg-surface);
@@ -128,8 +128,9 @@
         }
         .metric:nth-child(1)::after { background: var(--accent); }
         .metric:nth-child(2)::after { background: var(--green); }
-        .metric:nth-child(3)::after { background: var(--purple); }
-        .metric:nth-child(4)::after { background: var(--cyan); }
+        .metric:nth-child(3)::after { background: var(--green); }
+        .metric:nth-child(4)::after { background: var(--purple); }
+        .metric:nth-child(5)::after { background: var(--cyan); }
         .metric-label { font-size: 11px; text-transform: uppercase; letter-spacing: 1.2px; color: var(--text-muted); font-weight: 600; margin-bottom: 6px; }
         .metric-val { font-size: 30px; font-weight: 800; font-variant-numeric: tabular-nums; letter-spacing: -1px; }
         .metric-val.v1 { color: var(--accent); }
@@ -203,6 +204,28 @@
         .badge.online::before { content:''; width:5px; height:5px; border-radius:50%; background:var(--green); }
         .badge.opencode { background: var(--cyan-bg); color: var(--cyan); }
         .badge.agycli { background: var(--purple-bg); color: var(--purple); }
+        .badge.running { background: var(--green-bg); color: var(--green); }
+        .badge.running::before { content:''; width:5px; height:5px; border-radius:50%; background:var(--green); animation: blink 2.5s ease-in-out infinite; }
+        .badge.stopped { background: var(--orange-bg); color: var(--orange); }
+        .badge.starting { background: rgba(99,102,241,0.1); color: var(--accent); }
+        .badge.starting::before { content:''; width:5px; height:5px; border-radius:50%; background:var(--accent); animation: blink 1s ease-in-out infinite; }
+        .badge.failed { background: var(--red-bg); color: var(--red); }
+        .badge.server-online {
+            background: var(--green-bg);
+            color: var(--green);
+            border: 1px solid rgba(52, 211, 153, 0.3);
+            font-size: 11px;
+            font-weight: 700;
+        }
+        .badge.server-stopped {
+            background: rgba(148, 163, 184, 0.08);
+            color: var(--text-secondary);
+            border: 1px solid rgba(148, 163, 184, 0.2);
+            font-size: 11px;
+            font-weight: 600;
+        }
+        .card-icon.p { background: var(--cyan-bg); }
+        .card-icon.os { background: rgba(52, 211, 153, 0.15); color: var(--green); }
 
         .mono { font-family: 'SF Mono','Fira Code','JetBrains Mono',monospace; font-size: 12px; color: var(--text-secondary); letter-spacing: 0.3px; }
         .key-cell {
@@ -232,6 +255,50 @@
         .btn-red:hover { background: var(--red-bg); }
         .btn-orange { background: none; color: var(--orange); border: 1px solid rgba(251,191,36,0.2); }
         .btn-orange:hover { background: var(--orange-bg); }
+
+        .btn-red-action {
+            background: rgba(248, 113, 113, 0.15);
+            color: #fca5a5;
+            border: 1px solid rgba(248, 113, 113, 0.35);
+            font-weight: 600;
+            padding: 6px 13px;
+            border-radius: var(--radius-xs);
+            cursor: pointer;
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            font-family: inherit;
+            font-size: 12px;
+            transition: all var(--transition);
+        }
+        .btn-red-action:hover {
+            background: rgba(248, 113, 113, 0.3);
+            color: #ffffff;
+            border-color: var(--red);
+            box-shadow: 0 0 12px rgba(248, 113, 113, 0.3);
+        }
+
+        .btn-green-action {
+            background: rgba(52, 211, 153, 0.15);
+            color: #6ee7b7;
+            border: 1px solid rgba(52, 211, 153, 0.35);
+            font-weight: 600;
+            padding: 6px 13px;
+            border-radius: var(--radius-xs);
+            cursor: pointer;
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            font-family: inherit;
+            font-size: 12px;
+            transition: all var(--transition);
+        }
+        .btn-green-action:hover {
+            background: rgba(52, 211, 153, 0.3);
+            color: #ffffff;
+            border-color: var(--green);
+            box-shadow: 0 0 12px rgba(52, 211, 153, 0.3);
+        }
 
         /* ── Forms ── */
         .add-panel {
@@ -308,13 +375,15 @@
         .empty .ico { font-size: 28px; margin-bottom: 6px; opacity: 0.4; }
 
         /* ── Responsive ── */
-        @media (max-width: 900px) { .metrics { grid-template-columns: repeat(2, 1fr); } }
+        @media (max-width: 1100px) { .metrics { grid-template-columns: repeat(3, 1fr); } }
+        @media (max-width: 800px) { .metrics { grid-template-columns: repeat(2, 1fr); } }
         @media (max-width: 600px) {
             .container { padding: 16px; }
             .header { padding: 12px 16px; }
             .metrics { grid-template-columns: 1fr 1fr; gap: 10px; }
             .add-panel .row { flex-direction: column; }
         }
+        @media (max-width: 480px) { .metrics { grid-template-columns: 1fr; } }
     </style>
 </head>
 <body>
@@ -324,7 +393,10 @@
         <div class="logo">⚡</div>
         <div><h1><em>Token</em> Router</h1><small>MCP Manager &amp; AI Proxy Dashboard</small></div>
     </div>
-    <div class="status"><div class="status-dot"></div>Proxy Active · localhost:8000</div>
+    <div style="display:flex;align-items:center;gap:14px">
+        <button class="toggle-btn" onclick="refresh(true)">↻ Refresh PIDs</button>
+        <div class="status"><div class="status-dot"></div>Proxy Active · localhost:8000</div>
+    </div>
 </div>
 
 <div class="container">
@@ -332,6 +404,7 @@
     <div class="metrics">
         <div class="metric"><div class="metric-label">API Keys</div><div class="metric-val v1" id="m-keys">{{ total_keys }}</div><div class="metric-sub">Active provider keys</div></div>
         <div class="metric"><div class="metric-label">MCP Servers</div><div class="metric-val v2" id="m-servers">{{ total_servers }}</div><div class="metric-sub">OpenCode &amp; AgyCLI</div></div>
+        <div class="metric"><div class="metric-label">OS MCP PIDs</div><div class="metric-val v2" id="m-pids" style="display:flex;align-items:center;gap:10px"><span class="status-dot"></span><span id="m-pids-count">{{ (os_processes|default([]))|length }}</span></div><div class="metric-sub">Active Linux processes</div></div>
         <div class="metric"><div class="metric-label">Tokens Routed</div><div class="metric-val v3" id="m-tokens">{{ "{:,}".format(total_tokens) }}</div><div class="metric-sub">All keys combined</div></div>
         <div class="metric"><div class="metric-label">Proxy Endpoint</div><div class="metric-val v4">POST /v1/*</div><div class="metric-sub">Intercept &amp; track LLM calls</div></div>
     </div>
@@ -352,21 +425,42 @@
         </div>
     </div>
 
+    <!-- Active OS MCP Processes -->
+    <div class="card">
+        <div class="card-head">
+            <div class="card-title"><div class="card-icon os">⚡</div>Active OS MCP Processes (Linux PIDs)</div>
+            <button class="toggle-btn" onclick="refresh(true)">↻ Refresh PIDs</button>
+        </div>
+        <div id="os-processes-table"></div>
+    </div>
+
     <!-- MCP Servers -->
     <div class="card">
         <div class="card-head">
             <div class="card-title"><div class="card-icon s">⚙️</div>MCP Servers</div>
-            <button class="toggle-btn" onclick="togglePanel('srv-panel')">+ Add Server</button>
+            <div style="display:flex;gap:8px;align-items:center">
+                <button class="toggle-btn" onclick="refresh(true)">↻ Refresh</button>
+                <button class="toggle-btn" onclick="togglePanel('srv-panel')">+ Add Server</button>
+            </div>
         </div>
         <div id="servers-table"></div>
         <div class="add-panel" id="srv-panel">
             <div class="row">
                 <div class="fg"><label>Name</label><input type="text" id="f-sname" placeholder="my-server" style="min-width:160px"></div>
                 <div class="fg"><label>Config</label><select id="f-sconfig"><option value="agycli">AgyCLI</option><option value="opencode">OpenCode</option></select></div>
-                <div class="fg" style="flex:1"><label>Command (JSON)</label><textarea id="f-scmd" placeholder='{"command":"node","args":["server.js"]}'></textarea></div>
+                <div class="fg" style="flex:1"><label>Command (JSON)</label><textarea id="f-scmd" placeholder='{"command":"node","args":["server.js"],"port":3000}'></textarea></div>
                 <button class="btn btn-accent" onclick="addServer()">+ Enable</button>
             </div>
         </div>
+    </div>
+
+    <!-- Port Scanner -->
+    <div class="card">
+        <div class="card-head">
+            <div class="card-title"><div class="card-icon p">🔌</div>Port Scanner</div>
+            <button class="toggle-btn" onclick="refreshPorts()">↻ Refresh Ports</button>
+        </div>
+        <div id="ports-table"><div class="empty"><div class="ico">🔌</div>Click "Refresh Ports" to scan<br><span style="font-size:11px">Shows all system listening ports</span></div></div>
     </div>
 
     <!-- Token Usage -->
@@ -393,10 +487,28 @@
     </div>
 </div>
 
+<!-- Edit Port Modal -->
+<div class="modal-overlay" id="port-modal">
+    <div class="modal-box">
+        <h3>Edit Port</h3>
+        <p id="port-modal-info">Change the port for this MCP server</p>
+        <div style="display:flex;gap:10px;align-items:center;justify-content:center;margin-bottom:20px">
+            <label style="font-size:12px;color:var(--text-muted)">Port:</label>
+            <input type="text" id="f-port" placeholder="3000" style="width:120px;text-align:center" onkeydown="if(event.key==='Enter')confirmPort()">
+        </div>
+        <div class="modal-actions">
+            <button class="btn btn-ghost" onclick="closePortModal()">Cancel</button>
+            <button class="btn btn-accent" onclick="confirmPort()">Save</button>
+        </div>
+    </div>
+</div>
+
 <script>
-const STATE = {{ {"keys": keys, "servers": servers, "usage": usage, "total_tokens": total_tokens, "total_keys": total_keys, "total_servers": total_servers, "config_paths": config_paths} | tojson }};
+const STATE = {{ {"keys": keys, "servers": servers, "usage": usage, "total_tokens": total_tokens, "total_keys": total_keys, "total_servers": total_servers, "config_paths": config_paths, "os_processes": os_processes} | tojson }};
 const CONFIG_MAP = STATE.config_paths || {};
 let pendingDeleteId = null;
+let pendingPortServer = null;
+let pendingPortConfig = null;
 
 function esc(str) {
     if (str === null || str === undefined) return '';
@@ -413,6 +525,34 @@ function render() {
     document.getElementById('m-keys').textContent = STATE.total_keys;
     document.getElementById('m-servers').textContent = STATE.total_servers;
     document.getElementById('m-tokens').textContent = STATE.total_tokens.toLocaleString();
+    const pidsEl = document.getElementById('m-pids-count');
+    if (pidsEl) pidsEl.textContent = (STATE.os_processes || []).length;
+
+    // Active OS MCP Processes table
+    const opt = document.getElementById('os-processes-table');
+    if (opt) {
+        const procs = STATE.os_processes || [];
+        if (procs.length === 0) {
+            opt.innerHTML = '<div class="empty"><div class="ico">⚡</div>No active OS MCP processes detected<br><span style="font-size:11px">Scanning system processes for MCP signatures</span></div>';
+        } else {
+            let h = '<table><thead><tr><th>PID</th><th>Process Name</th><th>CPU / RAM</th><th>Status</th><th>Command Line</th><th>Actions</th></tr></thead><tbody>';
+            procs.forEach(p => {
+                const cmdFull = p.cmd || '';
+                const cmdDisplay = cmdFull.length > 55 ? cmdFull.slice(0, 55) + '…' : cmdFull;
+                const cpuMem = `${p.cpu || '0.0%'} CPU / ${p.mem || '0.0%'} RAM`;
+                h += `<tr>
+                    <td><span class="mono" style="font-weight:700;color:var(--text-primary)">PID ${p.pid}</span></td>
+                    <td><strong>${esc(p.name)}</strong></td>
+                    <td><span class="mono" style="font-size:12px">${esc(cpuMem)}</span></td>
+                    <td><span class="badge running">${esc(p.status || 'RUNNING')}</span></td>
+                    <td><span class="mono" title="${esc(cmdFull)}" style="cursor:help">${esc(cmdDisplay)}</span></td>
+                    <td><button class="btn btn-red-action" onclick="killPid(${p.pid})">⏻ Turn OFF (Kill PID)</button></td>
+                </tr>`;
+            });
+            h += '</tbody></table>';
+            opt.innerHTML = h;
+        }
+    }
 
     // Keys table
     const kt = document.getElementById('keys-table');
@@ -443,17 +583,41 @@ function render() {
     if (srvEntries.length === 0) {
         st.innerHTML = '<div class="empty"><div class="ico">⚙️</div>No active MCP servers<br><span style="font-size:11px">Scanning opencode.jsonc &amp; mcp_config.json</span></div>';
     } else {
-        let h = '<table><thead><tr><th>Name</th><th>Source</th><th>Status</th><th>Command</th><th>Actions</th></tr></thead><tbody>';
+        let h = '<table><thead><tr><th>Name</th><th>Source</th><th>Status</th><th>Port</th><th>Command</th><th>Actions</th></tr></thead><tbody>';
         srvEntries.forEach(([name, info]) => {
-            const cmdStr = info.command && info.command.command
-                ? info.command.command + ' ' + (info.command.args || []).join(' ')
-                : JSON.stringify(info.command).slice(0, 50);
+            let cmdStr = '';
+            if (info.command) {
+                if (typeof info.command === 'object' && !Array.isArray(info.command)) {
+                    if (info.command.command) {
+                        cmdStr = info.command.command + ' ' + (info.command.args || []).join(' ');
+                    } else {
+                        cmdStr = JSON.stringify(info.command);
+                    }
+                } else if (Array.isArray(info.command)) {
+                    cmdStr = info.command.join(' ');
+                } else {
+                    cmdStr = String(info.command);
+                }
+            }
+            const isRunning = Boolean(info.is_running && info.pid);
+            const statusBadge = isRunning
+                ? `<span class="badge server-online">🟢 ONLINE (PID: ${info.pid})</span>`
+                : `<span class="badge server-stopped">⚪ STOPPED</span>`;
+            const port = info.port || info.command?.port || '—';
+            let actions = '';
+            if (isRunning) {
+                actions = `<button class="btn btn-red-action" onclick="killPid(${info.pid})">⏻ Turn OFF</button>`;
+            } else {
+                actions = `<button class="btn btn-green-action" onclick="startConfiguredServer('${esc(name)}')">▶ Turn ON</button>`;
+            }
+            actions += ` <button class="btn btn-ghost" data-name="${esc(name)}" data-config="${esc(info.config_file)}" data-port="${port === '—' ? '' : port}" onclick="openPortModalFromBtn(this)">✎ Port</button>`;
             h += `<tr>
                 <td><strong>${esc(name)}</strong></td>
                 <td><span class="badge ${esc(info.source)}">${esc(info.source)}</span></td>
-                <td><span class="badge online">Online</span></td>
-                <td><span class="mono">${esc(cmdStr.length > 45 ? cmdStr.slice(0, 45) + '…' : cmdStr)}</span></td>
-                <td><button class="btn btn-orange" data-name="${esc(name)}" data-config="${esc(info.config_file)}" data-cmd="${esc(encodeURIComponent(JSON.stringify(info.command)))}" onclick="handleDisable(this)">⏻ Disable</button></td>
+                <td>${statusBadge}</td>
+                <td><span class="mono">${port}</span></td>
+                <td><span class="mono" title="${esc(cmdStr)}" style="cursor:help">${esc(cmdStr.length > 40 ? cmdStr.slice(0, 40) + '…' : cmdStr)}</span></td>
+                <td>${actions}</td>
             </tr>`;
         });
         h += '</tbody></table>';
@@ -496,8 +660,9 @@ async function fetchApi(url, body, successMsg = 'Done') {
         const d = await r.json();
         if (d.ok) {
             await refresh();
-            toast(successMsg, 'ok');
-            return true;
+            const msg = d.pid ? `${successMsg} (PID: ${d.pid})` : successMsg;
+            toast(msg, 'ok');
+            return d;
         } else {
             toast('Error: ' + (d.error || d.detail || 'Request failed'), 'err');
             return false;
@@ -508,14 +673,20 @@ async function fetchApi(url, body, successMsg = 'Done') {
     }
 }
 
-async function refresh() {
+async function refresh(manual = false) {
     try {
         const r = await fetch('/api/data');
         const d = await r.json();
         Object.assign(STATE, d);
         render();
+        if (manual) {
+            toast('PIDs refreshed', 'ok');
+        }
     } catch(e) {
         console.error('Failed to refresh data', e);
+        if (manual) {
+            toast('Failed to refresh', 'err');
+        }
     }
 }
 
@@ -590,6 +761,100 @@ function handleDisable(btn) {
     disableServer(btn.dataset.name, btn.dataset.config, btn.dataset.cmd);
 }
 
+// ── MCP Process & Server Actions ──
+async function killPid(pid) {
+    if (!pid) return;
+    await fetchApi('/kill_pid', { pid: pid }, `Process ${pid} killed`);
+}
+
+async function startConfiguredServer(name) {
+    const srv = STATE.servers && STATE.servers[name];
+    if (!srv || !srv.command) {
+        toast('No command defined for ' + name, 'err');
+        return;
+    }
+    toast('Starting ' + name + '...', 'ok');
+    await fetchApi('/start_server', { command: srv.command }, `Server ${name} started`);
+}
+
+// ── Port Scanner ──
+async function refreshPorts() {
+    const pt = document.getElementById('ports-table');
+    pt.innerHTML = '<div class="empty"><div class="ico">⏳</div>Scanning ports...</div>';
+    try {
+        const r = await fetch('/api/ports');
+        const d = await r.json();
+        renderPorts(d.ports, d.mcp_mapping);
+    } catch(e) {
+        pt.innerHTML = '<div class="empty"><div class="ico">❌</div>Failed to scan ports</div>';
+        toast('Port scan failed', 'err');
+    }
+}
+
+function renderPorts(ports, mcpMapping) {
+    const pt = document.getElementById('ports-table');
+    if (!ports || ports.length === 0) {
+        pt.innerHTML = '<div class="empty"><div class="ico">🔌</div>No listening ports found</div>';
+        return;
+    }
+    let h = '<table><thead><tr><th>PID</th><th>Port</th><th>Protocol</th><th>Command</th><th>User</th><th>MCP Server</th></tr></thead><tbody>';
+    const mcpByPid = {};
+    if (mcpMapping) {
+        Object.entries(mcpMapping).forEach(([name, info]) => {
+            if (info.pid) mcpByPid[info.pid] = name;
+        });
+    }
+    ports.forEach(p => {
+        const mcpName = mcpByPid[p.pid] || '';
+        const mcpBadge = mcpName ? `<span class="badge running">${esc(mcpName)}</span>` : '';
+        const cmdShort = p.command && p.command.length > 50 ? p.command.slice(0, 50) + '…' : (p.command || '?');
+        h += `<tr${mcpName ? ' style="background:rgba(52,211,153,0.05)"' : ''}>
+            <td><span class="mono">${p.pid || '—'}</span></td>
+            <td><span class="mono" style="font-weight:700;color:var(--cyan)">${p.port}</span></td>
+            <td>${p.protocol || 'tcp'}</td>
+            <td><span class="mono">${esc(cmdShort)}</span></td>
+            <td>${esc(p.user || '?')}</td>
+            <td>${mcpBadge}</td>
+        </tr>`;
+    });
+    h += '</tbody></table>';
+    pt.innerHTML = h;
+}
+
+// ── Edit Port Modal ──
+function openPortModal(name, configFile, currentPort) {
+    pendingPortServer = name;
+    pendingPortConfig = configFile;
+    document.getElementById('f-port').value = currentPort || '';
+    document.getElementById('port-modal-info').textContent = `Change port for "${name}"`;
+    document.getElementById('port-modal').classList.add('open');
+    document.getElementById('f-port').focus();
+}
+
+function openPortModalFromBtn(btn) {
+    openPortModal(btn.dataset.name, btn.dataset.config, btn.dataset.port);
+}
+
+function closePortModal() {
+    document.getElementById('port-modal').classList.remove('open');
+    pendingPortServer = null;
+    pendingPortConfig = null;
+}
+
+async function confirmPort() {
+    const portVal = parseInt(document.getElementById('f-port').value);
+    if (!portVal || portVal < 1 || portVal > 65535) {
+        toast('Enter a valid port (1-65535)', 'err');
+        return;
+    }
+    await fetchApi('/update_server_port', {
+        server_name: pendingPortServer,
+        config_file: pendingPortConfig,
+        new_port: portVal
+    }, 'Port updated');
+    closePortModal();
+}
+
 function toggleKey(el) {
     const showing = el.textContent === el.dataset.full;
     el.textContent = showing ? el.dataset.masked : el.dataset.full;
@@ -620,12 +885,18 @@ function toast(msg, type = 'ok') {
 document.getElementById('del-modal').addEventListener('click', function(e) {
     if (e.target === this) closeModal();
 });
+document.getElementById('port-modal').addEventListener('click', function(e) {
+    if (e.target === this) closePortModal();
+});
 document.addEventListener('keydown', function(e) {
-    if (e.key === 'Escape') closeModal();
+    if (e.key === 'Escape') {
+        closeModal();
+        closePortModal();
+    }
 });
 
-// ── Auto-refresh ──
-setInterval(refresh, 30000);
+// ── Auto-refresh (5s fast polling for real-time process state) ──
+setInterval(refresh, 5000);
 
 // ── Init ──
 render();

@@ -256,3 +256,38 @@ def test_gather_dashboard_data_matching_and_non_string_args(monkeypatch):
     assert data["servers"]["server3"]["is_running"] is False
 
 
+def test_dashboard_html_contains_os_mcp_ui(monkeypatch):
+    import app.main as main_mod
+
+    mock_processes = [
+        {"pid": 137648, "name": "caveman-mcp", "cmd": "python caveman.py", "cpu": "0.2%", "mem": "0.6%", "status": "RUNNING"},
+    ]
+    monkeypatch.setattr(main_mod, "get_running_mcp_processes", lambda: mock_processes)
+    monkeypatch.setattr(main_mod, "_load_mcp_servers", lambda: {
+        "caveman-mcp": {"source": "agycli", "command": {"command": "python", "args": ["caveman.py"]}},
+        "stopped-srv": {"source": "opencode", "command": {"command": "node", "args": ["stopped.js"]}},
+    })
+
+    client = TestClient(app)
+    response = client.get("/")
+    assert response.status_code == 200
+    html = response.text
+    # Check 5th metric card
+    assert "OS MCP PIDs" in html
+    assert "m-pids" in html
+    assert "m-pids-count" in html
+    # Check Active OS MCP Processes card and table container
+    assert "Active OS MCP Processes (Linux PIDs)" in html
+    assert "os-processes-table" in html
+    # Check refresh button and fast 5s auto-refresh
+    assert "Refresh PIDs" in html
+    assert "setInterval(refresh, 5000)" in html
+    # Check process action and server button definitions
+    assert "killPid" in html
+    assert "startConfiguredServer" in html
+    assert "Turn OFF (Kill PID)" in html
+    assert "server-online" in html
+    assert "server-stopped" in html
+
+
+
