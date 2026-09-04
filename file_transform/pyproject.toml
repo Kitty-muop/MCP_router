@@ -1,0 +1,9 @@
+[project]
+name = "file_transform"
+version = "0.1.0"
+description = "A CocoIndex application"
+requires-python = ">=3.11"
+dependencies = [
+    "cocoindex>=999.0.0",
+    "markdown>=3.6",
+]
