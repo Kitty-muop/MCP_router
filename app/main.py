@@ -1,6 +1,8 @@
 import pathlib
 import json
 import os
+import shlex
+from typing import Dict, Any
 from fastapi import FastAPI, Request
 from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.templating import Jinja2Templates
@@ -8,6 +10,11 @@ from fastapi.concurrency import run_in_threadpool
 from app.proxy import handle_proxy
 from app.database import get_db_conn, init_db
 from app.config_manager import toggle_mcp, strip_jsonc_comments
+from app.process_manager import (
+    get_running_mcp_processes,
+    kill_process_by_pid,
+    start_mcp_process,
+)
 
 app = FastAPI(title="MCP Manager & AI Proxy Dashboard")
 init_db()
@@ -17,6 +24,17 @@ templates = Jinja2Templates(directory=str(BASE_DIR / "templates"))
 
 OPENCODE_CONFIG = os.path.expanduser("~/.config/opencode/opencode.jsonc")
 AGYCLI_CONFIG = os.path.expanduser("~/.gemini/config/mcp_config.json")
+
+
+def _resolve_config_file(config_file: str) -> str:
+    """Resolve config file label to actual path."""
+    if config_file == "agycli":
+        return AGYCLI_CONFIG
+    elif config_file == "opencode":
+        return OPENCODE_CONFIG
+    elif config_file:
+        return os.path.expanduser(config_file)
+    return OPENCODE_CONFIG
 
 
 def _gather_dashboard_data() -> dict:
@@ -43,6 +61,34 @@ def _gather_dashboard_data() -> dict:
             except Exception:
                 pass
 
+    os_processes = get_running_mcp_processes()
+    for name, info in servers.items():
+        cmd_info = info.get("command", {})
+        cmd_str = ""
+        if isinstance(cmd_info, dict):
+            cmd_str = f"{cmd_info.get('command', '')} {' '.join(cmd_info.get('args', []))}".strip()
+        elif isinstance(cmd_info, list):
+            cmd_str = " ".join(cmd_info).strip()
+        elif isinstance(cmd_info, str):
+            cmd_str = cmd_info.strip()
+
+        matched_pid = None
+        for proc in os_processes:
+            p_cmd = proc.get("cmd", "")
+            p_name = proc.get("name", "")
+            if (name.lower() in p_cmd.lower() or 
+                name.lower() in p_name.lower() or 
+                (cmd_str and (cmd_str in p_cmd or p_cmd in cmd_str))):
+                matched_pid = proc.get("pid")
+                break
+
+        if matched_pid is not None:
+            info["pid"] = matched_pid
+            info["is_running"] = True
+        else:
+            info["pid"] = None
+            info["is_running"] = False
+
     return {
         "keys": keys,
         "servers": servers,
@@ -51,6 +97,7 @@ def _gather_dashboard_data() -> dict:
         "total_keys": len(keys),
         "total_servers": len(servers),
         "config_paths": {"agycli": AGYCLI_CONFIG, "opencode": OPENCODE_CONFIG},
+        "os_processes": os_processes,
     }
 
 
@@ -123,14 +170,46 @@ async def toggle_server(request: Request):
         return JSONResponse({"ok": False, "error": "server_name is required"}, status_code=400)
 
     enable = body.get("enable", False)
-    config_file = body.get("config_file", AGYCLI_CONFIG)
-    if config_file == "agycli":
-        config_file = AGYCLI_CONFIG
-    elif config_file == "opencode":
-        config_file = OPENCODE_CONFIG
-    elif config_file:
-        config_file = os.path.expanduser(config_file)
+    config_file = _resolve_config_file(body.get("config_file", AGYCLI_CONFIG))
     command = body.get("command", {})
 
     ok = await run_in_threadpool(toggle_mcp, config_file, server_name, enable, command)
     return JSONResponse({"ok": bool(ok)}, status_code=200 if ok else 400)
+
+
+@app.post("/kill_pid")
+async def kill_pid_route(request: Request):
+    try:
+        body = await request.json()
+    except Exception:
+        return JSONResponse({"ok": False, "error": "Invalid JSON"}, status_code=400)
+    pid = body.get("pid")
+    if pid is None:
+        return JSONResponse({"ok": False, "error": "Missing pid"}, status_code=400)
+    success = await run_in_threadpool(kill_process_by_pid, int(pid))
+    return JSONResponse({"ok": success}, status_code=200 if success else 400)
+
+
+@app.post("/start_server")
+async def start_server_route(request: Request):
+    try:
+        body = await request.json()
+    except Exception:
+        return JSONResponse({"ok": False, "error": "Invalid JSON"}, status_code=400)
+    command = body.get("command")
+    if not command:
+        return JSONResponse({"ok": False, "error": "Missing command"}, status_code=400)
+    cmd_list = []
+    if isinstance(command, dict):
+        base_cmd = command.get("command", "")
+        args = command.get("args", [])
+        if base_cmd:
+            cmd_list = [base_cmd] + args
+    elif isinstance(command, list):
+        cmd_list = command
+    elif isinstance(command, str):
+        cmd_list = shlex.split(command)
+    if not cmd_list:
+        return JSONResponse({"ok": False, "error": "Invalid command list"}, status_code=400)
+    pid = await run_in_threadpool(start_mcp_process, cmd_list)
+    return JSONResponse({"ok": bool(pid), "pid": pid}, status_code=200 if pid else 400)

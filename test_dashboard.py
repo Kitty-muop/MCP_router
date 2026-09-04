@@ -157,3 +157,55 @@ def test_toggle_server_label_resolution(monkeypatch):
     assert response.json()["ok"] is True
     from app.main import OPENCODE_CONFIG
     assert called["args"][0] == OPENCODE_CONFIG
+
+
+def test_kill_pid_endpoint():
+    client = TestClient(app)
+    # killing invalid pid returns 400
+    res = client.post("/kill_pid", json={"pid": 99999999})
+    assert res.status_code == 400
+    assert res.json()["ok"] is False
+
+
+def test_kill_pid_missing_pid():
+    client = TestClient(app)
+    res = client.post("/kill_pid", json={})
+    assert res.status_code == 400
+    assert res.json()["ok"] is False
+
+
+def test_start_server_endpoint(monkeypatch):
+    client = TestClient(app)
+    # Missing command returns 400
+    res = client.post("/start_server", json={})
+    assert res.status_code == 400
+    assert res.json()["ok"] is False
+
+    # Start with dict command mocked
+    monkeypatch.setattr("app.main.start_mcp_process", lambda cmd: 12345)
+    res = client.post("/start_server", json={"command": {"command": "python", "args": ["srv.py"]}})
+    assert res.status_code == 200
+    assert res.json()["ok"] is True
+    assert res.json()["pid"] == 12345
+
+    # Start with list command
+    res = client.post("/start_server", json={"command": ["python", "srv.py"]})
+    assert res.status_code == 200
+    assert res.json()["ok"] is True
+    assert res.json()["pid"] == 12345
+
+    # Start with string command
+    res = client.post("/start_server", json={"command": "python srv.py"})
+    assert res.status_code == 200
+    assert res.json()["ok"] is True
+    assert res.json()["pid"] == 12345
+
+
+def test_api_data_includes_os_processes():
+    client = TestClient(app)
+    res = client.get("/api/data")
+    assert res.status_code == 200
+    data = res.json()
+    assert "os_processes" in data
+    assert isinstance(data["os_processes"], list)
+
