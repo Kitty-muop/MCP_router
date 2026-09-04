@@ -224,7 +224,6 @@
             font-size: 11px;
             font-weight: 600;
         }
-        .card-icon.p { background: var(--cyan-bg); }
         .card-icon.os { background: rgba(52, 211, 153, 0.15); color: var(--green); }
 
         .mono { font-family: 'SF Mono','Fira Code','JetBrains Mono',monospace; font-size: 12px; color: var(--text-secondary); letter-spacing: 0.3px; }
@@ -454,15 +453,6 @@
         </div>
     </div>
 
-    <!-- Port Scanner -->
-    <div class="card">
-        <div class="card-head">
-            <div class="card-title"><div class="card-icon p">🔌</div>Port Scanner</div>
-            <button class="toggle-btn" onclick="refreshPorts()">↻ Refresh Ports</button>
-        </div>
-        <div id="ports-table"><div class="empty"><div class="ico">🔌</div>Click "Refresh Ports" to scan<br><span style="font-size:11px">Shows all system listening ports</span></div></div>
-    </div>
-
     <!-- Token Usage -->
     <div class="card" id="usage-card" style="display:none">
         <div class="card-head">
@@ -487,28 +477,10 @@
     </div>
 </div>
 
-<!-- Edit Port Modal -->
-<div class="modal-overlay" id="port-modal">
-    <div class="modal-box">
-        <h3>Edit Port</h3>
-        <p id="port-modal-info">Change the port for this MCP server</p>
-        <div style="display:flex;gap:10px;align-items:center;justify-content:center;margin-bottom:20px">
-            <label style="font-size:12px;color:var(--text-muted)">Port:</label>
-            <input type="text" id="f-port" placeholder="3000" style="width:120px;text-align:center" onkeydown="if(event.key==='Enter')confirmPort()">
-        </div>
-        <div class="modal-actions">
-            <button class="btn btn-ghost" onclick="closePortModal()">Cancel</button>
-            <button class="btn btn-accent" onclick="confirmPort()">Save</button>
-        </div>
-    </div>
-</div>
-
 <script>
 const STATE = {{ {"keys": keys, "servers": servers, "usage": usage, "total_tokens": total_tokens, "total_keys": total_keys, "total_servers": total_servers, "config_paths": config_paths, "os_processes": os_processes} | tojson }};
 const CONFIG_MAP = STATE.config_paths || {};
 let pendingDeleteId = null;
-let pendingPortServer = null;
-let pendingPortConfig = null;
 
 function esc(str) {
     if (str === null || str === undefined) return '';
@@ -583,7 +555,7 @@ function render() {
     if (srvEntries.length === 0) {
         st.innerHTML = '<div class="empty"><div class="ico">⚙️</div>No active MCP servers<br><span style="font-size:11px">Scanning opencode.jsonc &amp; mcp_config.json</span></div>';
     } else {
-        let h = '<table><thead><tr><th>Name</th><th>Source</th><th>Status</th><th>Port</th><th>Command</th><th>Actions</th></tr></thead><tbody>';
+        let h = '<table><thead><tr><th>Name</th><th>Source</th><th>Status</th><th>Command</th><th>Actions</th></tr></thead><tbody>';
         srvEntries.forEach(([name, info]) => {
             let cmdStr = '';
             if (info.command) {
@@ -603,20 +575,17 @@ function render() {
             const statusBadge = isRunning
                 ? `<span class="badge server-online">🟢 ONLINE (PID: ${info.pid})</span>`
                 : `<span class="badge server-stopped">⚪ STOPPED</span>`;
-            const port = info.port || info.command?.port || '—';
             let actions = '';
             if (isRunning) {
                 actions = `<button class="btn btn-red-action" onclick="killPid(${info.pid})">⏻ Turn OFF</button>`;
             } else {
-                actions = `<button class="btn btn-green-action" onclick="startConfiguredServer('${esc(name)}')">▶ Turn ON</button>`;
+                actions = `<button class="btn btn-green-action" data-name="${esc(name)}" onclick="startConfiguredServer(this.dataset.name)">▶ Turn ON</button>`;
             }
-            actions += ` <button class="btn btn-ghost" data-name="${esc(name)}" data-config="${esc(info.config_file)}" data-port="${port === '—' ? '' : port}" onclick="openPortModalFromBtn(this)">✎ Port</button>`;
             h += `<tr>
                 <td><strong>${esc(name)}</strong></td>
                 <td><span class="badge ${esc(info.source)}">${esc(info.source)}</span></td>
                 <td>${statusBadge}</td>
-                <td><span class="mono">${port}</span></td>
-                <td><span class="mono" title="${esc(cmdStr)}" style="cursor:help">${esc(cmdStr.length > 40 ? cmdStr.slice(0, 40) + '…' : cmdStr)}</span></td>
+                <td><span class="mono" title="${esc(cmdStr)}" style="cursor:help">${esc(cmdStr.length > 50 ? cmdStr.slice(0, 50) + '…' : cmdStr)}</span></td>
                 <td>${actions}</td>
             </tr>`;
         });
@@ -747,20 +716,6 @@ async function addServer() {
     }
 }
 
-function disableServer(name, configFile, cmdEncoded) {
-    let command = {};
-    try {
-        command = typeof cmdEncoded === 'string' ? JSON.parse(decodeURIComponent(cmdEncoded)) : cmdEncoded;
-    } catch(e) {
-        try { command = JSON.parse(cmdEncoded); } catch(e2) {}
-    }
-    fetchApi('/toggle_server', { server_name: name, enable: false, config_file: configFile, command }, 'Server disabled');
-}
-
-function handleDisable(btn) {
-    disableServer(btn.dataset.name, btn.dataset.config, btn.dataset.cmd);
-}
-
 // ── MCP Process & Server Actions ──
 async function killPid(pid) {
     if (!pid) return;
@@ -775,84 +730,6 @@ async function startConfiguredServer(name) {
     }
     toast('Starting ' + name + '...', 'ok');
     await fetchApi('/start_server', { command: srv.command }, `Server ${name} started`);
-}
-
-// ── Port Scanner ──
-async function refreshPorts() {
-    const pt = document.getElementById('ports-table');
-    pt.innerHTML = '<div class="empty"><div class="ico">⏳</div>Scanning ports...</div>';
-    try {
-        const r = await fetch('/api/ports');
-        const d = await r.json();
-        renderPorts(d.ports, d.mcp_mapping);
-    } catch(e) {
-        pt.innerHTML = '<div class="empty"><div class="ico">❌</div>Failed to scan ports</div>';
-        toast('Port scan failed', 'err');
-    }
-}
-
-function renderPorts(ports, mcpMapping) {
-    const pt = document.getElementById('ports-table');
-    if (!ports || ports.length === 0) {
-        pt.innerHTML = '<div class="empty"><div class="ico">🔌</div>No listening ports found</div>';
-        return;
-    }
-    let h = '<table><thead><tr><th>PID</th><th>Port</th><th>Protocol</th><th>Command</th><th>User</th><th>MCP Server</th></tr></thead><tbody>';
-    const mcpByPid = {};
-    if (mcpMapping) {
-        Object.entries(mcpMapping).forEach(([name, info]) => {
-            if (info.pid) mcpByPid[info.pid] = name;
-        });
-    }
-    ports.forEach(p => {
-        const mcpName = mcpByPid[p.pid] || '';
-        const mcpBadge = mcpName ? `<span class="badge running">${esc(mcpName)}</span>` : '';
-        const cmdShort = p.command && p.command.length > 50 ? p.command.slice(0, 50) + '…' : (p.command || '?');
-        h += `<tr${mcpName ? ' style="background:rgba(52,211,153,0.05)"' : ''}>
-            <td><span class="mono">${p.pid || '—'}</span></td>
-            <td><span class="mono" style="font-weight:700;color:var(--cyan)">${p.port}</span></td>
-            <td>${p.protocol || 'tcp'}</td>
-            <td><span class="mono">${esc(cmdShort)}</span></td>
-            <td>${esc(p.user || '?')}</td>
-            <td>${mcpBadge}</td>
-        </tr>`;
-    });
-    h += '</tbody></table>';
-    pt.innerHTML = h;
-}
-
-// ── Edit Port Modal ──
-function openPortModal(name, configFile, currentPort) {
-    pendingPortServer = name;
-    pendingPortConfig = configFile;
-    document.getElementById('f-port').value = currentPort || '';
-    document.getElementById('port-modal-info').textContent = `Change port for "${name}"`;
-    document.getElementById('port-modal').classList.add('open');
-    document.getElementById('f-port').focus();
-}
-
-function openPortModalFromBtn(btn) {
-    openPortModal(btn.dataset.name, btn.dataset.config, btn.dataset.port);
-}
-
-function closePortModal() {
-    document.getElementById('port-modal').classList.remove('open');
-    pendingPortServer = null;
-    pendingPortConfig = null;
-}
-
-async function confirmPort() {
-    const portVal = parseInt(document.getElementById('f-port').value);
-    if (!portVal || portVal < 1 || portVal > 65535) {
-        toast('Enter a valid port (1-65535)', 'err');
-        return;
-    }
-    await fetchApi('/update_server_port', {
-        server_name: pendingPortServer,
-        config_file: pendingPortConfig,
-        new_port: portVal
-    }, 'Port updated');
-    closePortModal();
 }
 
 function toggleKey(el) {
@@ -885,13 +762,9 @@ function toast(msg, type = 'ok') {
 document.getElementById('del-modal').addEventListener('click', function(e) {
     if (e.target === this) closeModal();
 });
-document.getElementById('port-modal').addEventListener('click', function(e) {
-    if (e.target === this) closePortModal();
-});
 document.addEventListener('keydown', function(e) {
     if (e.key === 'Escape') {
         closeModal();
-        closePortModal();
     }
 });
 
