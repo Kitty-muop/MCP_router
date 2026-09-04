@@ -75,9 +75,15 @@ async def api_data():
 
 @app.post("/add_key")
 async def add_key(request: Request):
-    body = await request.json()
+    try:
+        body = await request.json()
+    except Exception:
+        return JSONResponse({"ok": False, "error": "Invalid JSON"}, status_code=400)
+
     provider = body.get("provider", "openai")
-    key = body["key"]
+    key = body.get("key")
+    if not key:
+        return JSONResponse({"ok": False, "error": "key is required"}, status_code=400)
 
     def insert_key():
         with get_db_conn() as conn:
@@ -88,8 +94,14 @@ async def add_key(request: Request):
 
 @app.post("/delete_key")
 async def delete_key(request: Request):
-    body = await request.json()
-    key_id = body["key_id"]
+    try:
+        body = await request.json()
+    except Exception:
+        return JSONResponse({"ok": False, "error": "Invalid JSON"}, status_code=400)
+
+    key_id = body.get("key_id")
+    if key_id is None:
+        return JSONResponse({"ok": False, "error": "key_id is required"}, status_code=400)
 
     def remove_key():
         with get_db_conn() as conn:
@@ -100,11 +112,18 @@ async def delete_key(request: Request):
 
 @app.post("/toggle_server")
 async def toggle_server(request: Request):
-    body = await request.json()
-    server_name = body["server_name"]
+    try:
+        body = await request.json()
+    except Exception:
+        return JSONResponse({"ok": False, "error": "Invalid JSON"}, status_code=400)
+
+    server_name = body.get("server_name")
+    if not server_name:
+        return JSONResponse({"ok": False, "error": "server_name is required"}, status_code=400)
+
     enable = body.get("enable", False)
     config_file = body.get("config_file", AGYCLI_CONFIG)
     command = body.get("command", {})
 
-    await run_in_threadpool(toggle_mcp, config_file, server_name, enable, command)
-    return JSONResponse({"ok": True})
+    ok = await run_in_threadpool(toggle_mcp, config_file, server_name, enable, command)
+    return JSONResponse({"ok": bool(ok)}, status_code=200 if ok else 400)

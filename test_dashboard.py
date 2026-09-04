@@ -57,6 +57,13 @@ def test_add_key_json():
     assert data["keys"][0]["key_value"] == "sk-test-1234"
 
 
+def test_add_key_missing_key():
+    client = TestClient(app)
+    response = client.post("/add_key", json={"provider": "openai"})
+    assert response.status_code == 400
+    assert response.json()["ok"] is False
+
+
 def test_delete_key_json():
     client = TestClient(app)
     client.post("/add_key", json={"provider": "anthropic", "key": "key-test-5678"})
@@ -71,11 +78,19 @@ def test_delete_key_json():
     assert data["total_keys"] == 0
 
 
+def test_delete_key_missing_id():
+    client = TestClient(app)
+    response = client.post("/delete_key", json={})
+    assert response.status_code == 400
+    assert response.json()["ok"] is False
+
+
 def test_toggle_server_json(monkeypatch):
     called = {}
 
     def mock_toggle(config_file, server_name, enable, command):
         called["args"] = (config_file, server_name, enable, command)
+        return True
 
     monkeypatch.setattr("app.main.toggle_mcp", mock_toggle)
 
@@ -92,3 +107,25 @@ def test_toggle_server_json(monkeypatch):
     assert response.status_code == 200
     assert response.json()["ok"] is True
     assert called["args"] == ("test_cfg.json", "test-srv", True, {"command": "node", "args": ["index.js"]})
+
+
+def test_toggle_server_missing_name():
+    client = TestClient(app)
+    response = client.post(
+        "/toggle_server",
+        json={"enable": True},
+    )
+    assert response.status_code == 400
+    assert response.json()["ok"] is False
+
+
+def test_toggle_server_failure(monkeypatch):
+    monkeypatch.setattr("app.main.toggle_mcp", lambda *args, **kwargs: False)
+
+    client = TestClient(app)
+    response = client.post(
+        "/toggle_server",
+        json={"server_name": "failing-srv", "enable": True},
+    )
+    assert response.status_code == 400
+    assert response.json()["ok"] is False
