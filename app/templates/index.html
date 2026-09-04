@@ -4,11 +4,41 @@
 <head><title>MCP Manager</title></head>
 <body>
     <h1>API Keys</h1>
+    <ul>
+    {% for key in keys %}
+        <li>{{ key[1] }}: {{ key[2] }}</li>
+    {% endfor %}
+    </ul>
     <form action="/add_key" method="post">
-        <input name="key" type="text">
+        <input name="key" type="text" placeholder="Enter API Key">
         <button type="submit">Add Key</button>
     </form>
     <h1>MCP Servers</h1>
-    <!-- Loop through MCPs here -->
+    <ul>
+    {% for name, info in servers.items() %}
+        <li>
+            <strong>{{ name }}</strong> (in {{ info.config_file }})
+            <pre>{{ info.command | tojson }}</pre>
+            <form action="/toggle_server" method="post" style="display:inline;">
+                <input type="hidden" name="server_name" value="{{ name }}">
+                <input type="hidden" name="config_file" value="{{ info.config_file }}">
+                <input type="hidden" name="enable" value="false">
+                <input type="hidden" name="command" value="{{ info.command | tojson | forceescape }}">
+                <button type="submit">Disable</button>
+            </form>
+        </li>
+    {% else %}
+        <li>No active servers found.</li>
+    {% endfor %}
+    </ul>
+    
+    <h2>Enable a New Server</h2>
+    <form action="/toggle_server" method="post">
+        <input type="text" name="server_name" placeholder="Server Name" required>
+        <input type="text" name="config_file" placeholder="Config File (e.g. mcp_config.json)" value="mcp_config.json" required>
+        <input type="hidden" name="enable" value="true">
+        <textarea name="command" placeholder='{"command": "node", "args": ["..."]}' required></textarea>
+        <button type="submit">Enable Server</button>
+    </form>
 </body>
 </html>

@@ -1,7 +1,23 @@
 import pytest
+import sqlite3
 from fastapi.testclient import TestClient
 from app.main import app
 
+@pytest.fixture(autouse=True)
+def setup_db(monkeypatch, tmp_path):
+    db_path = str(tmp_path / "test.db")
+    
+    def mock_get_db_conn(*args, **kwargs):
+        return sqlite3.connect(db_path)
+    
+    import app.database as app_db
+    monkeypatch.setattr(app_db, "get_db_conn", mock_get_db_conn)
+    import app.main as app_main
+    monkeypatch.setattr(app_main, "get_db_conn", mock_get_db_conn)
+    
+    import app.database as db
+    db.init_db(db_path)
+    yield
 
 def test_dashboard_route():
     client = TestClient(app)
