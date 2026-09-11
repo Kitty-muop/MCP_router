@@ -68,6 +68,51 @@ def strip_jsonc_comments(text: str) -> str:
     return "".join(result)
 
 
+def update_server_port(
+    config_path: str,
+    server_name: str,
+    new_port: int,
+) -> bool:
+    if not os.path.exists(config_path):
+        return False
+    if not isinstance(new_port, int) or not (1 <= new_port <= 65535):
+        return False
+
+    dir_name = os.path.dirname(os.path.abspath(config_path))
+    if not os.access(config_path, os.W_OK) or not os.access(dir_name, os.W_OK):
+        return False
+
+    temp_path = config_path + ".tmp"
+    try:
+        with open(config_path, "r", encoding="utf-8") as f:
+            raw_content = f.read()
+
+        cleaned_content = strip_jsonc_comments(raw_content)
+        data = json.loads(cleaned_content)
+        if not isinstance(data, dict):
+            return False
+
+        servers = data.get("mcpServers", {})
+        if not isinstance(servers, dict) or server_name not in servers:
+            return False
+
+        servers[server_name]["port"] = new_port
+
+        shutil.copy(config_path, config_path + ".bak")
+
+        with open(temp_path, "w", encoding="utf-8") as f:
+            json.dump(data, f, indent=2)
+        os.replace(temp_path, config_path)
+        return True
+    except (OSError, json.JSONDecodeError):
+        if os.path.exists(temp_path):
+            try:
+                os.remove(temp_path)
+            except OSError:
+                pass
+        return False
+
+
 def toggle_mcp(
     config_path: str,
     mcp_name: str,

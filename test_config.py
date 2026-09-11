@@ -3,7 +3,7 @@ import os
 import stat
 import tempfile
 import pytest
-from app.config_manager import toggle_mcp
+from app.config_manager import toggle_mcp, update_server_port
 
 
 def test_toggle_mcp():
@@ -125,4 +125,66 @@ def test_toggle_mcp_invalid_root_type(tmp_path):
     config_file.write_text(json.dumps(["item1", "item2"]))
 
     result = toggle_mcp(str(config_file), "test", False)
+    assert result is False
+
+
+def test_toggle_mcp_with_port(tmp_path):
+    config_file = tmp_path / "config.json"
+    config_file.write_text(json.dumps({"mcpServers": {}}))
+
+    cmd = {"command": "node", "args": ["server.js"], "port": 3000}
+    result = toggle_mcp(str(config_file), "my-server", True, command=cmd)
+
+    assert result is True
+    data = json.loads(config_file.read_text())
+    assert data["mcpServers"]["my-server"]["port"] == 3000
+    assert data["mcpServers"]["my-server"]["command"] == "node"
+
+
+def test_update_server_port(tmp_path):
+    config_file = tmp_path / "config.json"
+    config_file.write_text(json.dumps({
+        "mcpServers": {"my-server": {"command": "node", "args": ["s.js"], "port": 3000}}
+    }))
+
+    result = update_server_port(str(config_file), "my-server", 5000)
+
+    assert result is True
+    data = json.loads(config_file.read_text())
+    assert data["mcpServers"]["my-server"]["port"] == 5000
+
+
+def test_update_server_port_creates_backup(tmp_path):
+    config_file = tmp_path / "config.json"
+    config_file.write_text(json.dumps({
+        "mcpServers": {"my-server": {"command": "node", "port": 3000}}
+    }))
+
+    update_server_port(str(config_file), "my-server", 5000)
+
+    bak_file = tmp_path / "config.json.bak"
+    assert bak_file.exists()
+
+
+def test_update_server_port_invalid_port(tmp_path):
+    config_file = tmp_path / "config.json"
+    config_file.write_text(json.dumps({
+        "mcpServers": {"my-server": {"command": "node", "port": 3000}}
+    }))
+
+    assert update_server_port(str(config_file), "my-server", 0) is False
+    assert update_server_port(str(config_file), "my-server", 99999) is False
+    assert update_server_port(str(config_file), "my-server", -1) is False
+
+
+def test_update_server_port_nonexistent_file(tmp_path):
+    result = update_server_port(str(tmp_path / "missing.json"), "srv", 3000)
+    assert result is False
+
+
+def test_update_server_port_server_not_found(tmp_path):
+    config_file = tmp_path / "config.json"
+    config_file.write_text(json.dumps({"mcpServers": {}}))
+
+    result = update_server_port(str(config_file), "nonexistent", 3000)
     assert result is False
